@@ -1,28 +1,59 @@
-import { View, Text } from 'react-native'
-import React from 'react'
-import { Tabs } from 'expo-router'
 
-const _layout = () => {
+import React from 'react';
+import { Tabs } from 'expo-router';
+import { FontAwesome } from '@expo/vector-icons';
+
+const primary_purple = '#7467FF';
+
+export default function Layout() {
   return (
-    <Tabs>
-      <Tabs.Screen 
-      name="index" 
-      options={{ 
-        headerShown: false }} 
-        />
+    <Tabs 
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: primary_purple,     
+        tabBarShowLabel: false,
+        tabBarItemStyle: { marginTop: 8 },
+      }}
+    >
       <Tabs.Screen
-       name="search" 
-       options={{ headerShown: false }} />
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, focused, size }) => (
+            <FontAwesome name="home" size={32} color={focused ? primary_purple : color} />
+          ),
+        }}
+      />
 
       <Tabs.Screen
-       name="booking"
-       options={{ headerShown: false }} />
-       
+        name="search"
+        options={{
+          title: 'Search',
+          tabBarIcon: ({ color, focused, size }) => (
+            <FontAwesome name="search" size={size} color={focused ? primary_purple : color} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
-       name="profile"
-       options={{ headerShown: false }} />
+        name="booking"
+        options={{
+          title: 'Bookings',
+          tabBarIcon: ({ color, focused, size }) => (
+            <FontAwesome name="calendar" size={size} color={focused ? primary_purple : color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused, size }) => (
+            <FontAwesome name="user" size={size} color={focused ? primary_purple : color} />
+          ),
+        }}
+      />
     </Tabs>
-  )
+  );
 }
-
-export default _layout
