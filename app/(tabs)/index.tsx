@@ -1,3 +1,4 @@
+// app/(tabs)/index.tsx
 import React, { useMemo } from 'react';
 import {
   View,
@@ -9,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 const makeEst = (i: number) => ({
   id: `est-${i}`,
@@ -65,8 +67,20 @@ function EstablishmentCard({
   item: ReturnType<typeof makeEst>;
   image: any;
 }) {
+  const router = useRouter();
+
   return (
-    <TouchableOpacity activeOpacity={0.85} className="mr-4" style={{ width: 275 }}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      className="mr-4"
+      style={{ width: 275 }}
+      onPress={() =>
+        router.push({
+          pathname: '/screens/establishment',
+          params: { id: item.id, name: item.name },
+        })
+      }
+    >
       <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
         {/* Image header */}
         <Image source={image} className="w-full h-48" resizeMode="cover" />
