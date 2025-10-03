@@ -3,14 +3,18 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 
-const primary_purple = '#7467FF';
+const colors = {
+  primary_orange: '#FFC067',
+  secondary_purple: '#7C3AED',
+  accent_teal: '#67F2FF'
+}
 
 export default function Layout() {
   return (
     <Tabs 
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: primary_purple,     
+        tabBarActiveTintColor: colors.secondary_purple,     
         tabBarShowLabel: false,
         tabBarItemStyle: { paddingTop: 8},
         
@@ -21,7 +25,7 @@ export default function Layout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused, size }) => (
-            <FontAwesome name="home" size={32} color={focused ? primary_purple : color} />
+            <FontAwesome name="home" size={32} color={focused ? colors.secondary_purple : color} />
           ),
         }}
       />
@@ -31,7 +35,7 @@ export default function Layout() {
         options={{
           title: 'Search',
           tabBarIcon: ({ color, focused, size }) => (
-            <FontAwesome name="search" size={size} color={focused ? primary_purple : color} />
+            <FontAwesome name="search" size={size} color={focused ? colors.secondary_purple : color} />
           ),
         }}
       />
@@ -41,7 +45,7 @@ export default function Layout() {
         options={{
           title: 'Bookings',
           tabBarIcon: ({ color, focused, size }) => (
-            <FontAwesome name="calendar" size={size} color={focused ? primary_purple : color} />
+            <FontAwesome name="calendar" size={size} color={focused ? colors.secondary_purple : color} />
           ),
         }}
       />
@@ -51,7 +55,7 @@ export default function Layout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused, size }) => (
-            <FontAwesome name="user" size={size} color={focused ? primary_purple : color} />
+            <FontAwesome name="user" size={size} color={focused ? colors.secondary_purple : color} />
           ),
         }}
       />

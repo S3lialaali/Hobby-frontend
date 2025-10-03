@@ -10,8 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-
-
 const makeEst = (i: number) => ({
   id: `est-${i}`,
   name: [
@@ -36,99 +34,48 @@ const NEW_TO_HOBBY = Array.from({ length: 17 }, (_, i) => makeEst(i + 20)).slice
 const TRENDING = Array.from({ length: 19 }, (_, i) => makeEst(i + 40)).slice(0, 15);
 
 const CATEGORIES = [
-  {
-    id: 'c1',
-    name: 'Sports & fitness',
-    img: require('../../assets/images/categories/sports.jpeg'),
-  },
-  {
-    id: 'c2',
-    name: 'Water activities',
-    img: require('../../assets/images/categories/swimming.jpeg'),
-  },
-  {
-    id: 'c3',
-    name: 'Arts & crafts',
-    img: require('../../assets/images/categories/arts.jpeg'),
-  },
-  {
-    id: 'c4',
-    name: 'Music & performing arts',
-    img: require('../../assets/images/categories/music.jpeg'),
-  },
-  {
-    id: 'c5',
-    name: 'Cooking',
-    img: require('../../assets/images/categories/cooking.jpg'),
-  },
-  {
-    id: 'c6',
-    name: 'Technology & coding',
-    img: require('../../assets/images/categories/technology.jpg'),
-  },
-  {
-    id: 'c7',
-    name: 'Languages',
-    img: require('../../assets/images/categories/language.jpeg'),
-  },
-  {
-    id: 'c8',
-    name: 'Outdoor & adventure',
-    img: require('../../assets/images/categories/outdoor.jpg'),
-  },
-  {
-    id: 'c9',
-    name: 'Chess & board games',
-    img: require('../../assets/images/categories/chess.jpg'),
-  },
-  {
-    id: 'c10',
-    name: 'Photography & media',
-    img: require('../../assets/images/categories/photography.jpeg'),
-  },
+  { id: 'c1', name: 'Sports & fitness', img: require('../../assets/images/categories/sports.jpeg') },
+  { id: 'c2', name: 'Water activities', img: require('../../assets/images/categories/swimming.jpeg') },
+  { id: 'c3', name: 'Arts & crafts', img: require('../../assets/images/categories/arts.jpeg') },
+  { id: 'c4', name: 'Music & performing arts', img: require('../../assets/images/categories/music.jpeg') },
+  { id: 'c5', name: 'Cooking', img: require('../../assets/images/categories/cooking.jpg') },
+  { id: 'c6', name: 'Technology & coding', img: require('../../assets/images/categories/technology.jpg') },
+  { id: 'c7', name: 'Languages', img: require('../../assets/images/categories/language.jpeg') },
+  { id: 'c8', name: 'Outdoor & adventure', img: require('../../assets/images/categories/outdoor.jpg') },
+  { id: 'c9', name: 'Chess & board games', img: require('../../assets/images/categories/chess.jpg') },
+  { id: 'c10', name: 'Photography & media', img: require('../../assets/images/categories/photography.jpeg') },
+];
+
+// ---------- Placeholder images for establishments ----------
+const PLACEHOLDER_IMGS = [
+  require('../../assets/images/establishment_images/placeholder1.jpeg'),
+  require('../../assets/images/establishment_images/placeholder2.jpeg'),
+  require('../../assets/images/establishment_images/placeholder3.jpeg'),
+  require('../../assets/images/establishment_images/placeholder4.jpeg'),
+  require('../../assets/images/establishment_images/placeholder5.jpeg'),
 ];
 
 // ---------- Card components ----------
 const CARD_W = Math.min(Math.floor(Dimensions.get('window').width * 0.78), 320);
-const PLACEHOLDER_BG = [
-  'bg-violet-200',
-  'bg-indigo-200',
-  'bg-fuchsia-200',
-  'bg-rose-200',
-  'bg-amber-200',
-  'bg-emerald-200',
-  'bg-sky-200',
-  'bg-lime-200',
-  'bg-teal-200',
-  'bg-orange-200',
-];
 
 function EstablishmentCard({
   item,
-  colorClass,
+  image,
 }: {
   item: ReturnType<typeof makeEst>;
-  colorClass: string;
+  image: any;
 }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      className="mr-4"
-      style={{ width: 275 }} 
-    >
+    <TouchableOpacity activeOpacity={0.85} className="mr-4" style={{ width: 275 }}>
       <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
-       
-        <View className={`w-full h-48 ${colorClass}`} /> 
-        
+        {/* Image header */}
+        <Image source={image} className="w-full h-48" resizeMode="cover" />
+
         <View className="p-3">
-          <Text
-            className="text-base font-semibold text-gray-900"
-            numberOfLines={1}
-          >
+          <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
             {item.name}
           </Text>
 
-         
           <View className="mt-1">
             <Text className="text-[13px] font-semibold text-gray-800">⭐ {item.rating}</Text>
             <Text className="text-[13px] pt-1 pb-1 text-gray-500">{item.area}</Text>
@@ -149,10 +96,7 @@ function CategoryCard({ name, img }: { name: string; img: any }) {
       <View className="h-28 mb-4 mr-3 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 flex-row">
         {/* 60% TEXT */}
         <View className="flex-[2] justify-center px-4">
-          <Text
-            className="text-[13px] font-bold text-gray-900 leading-tight"
-            numberOfLines={4}
-          >
+          <Text className="text-[13px] font-bold text-gray-900 leading-tight" numberOfLines={4}>
             {name}
           </Text>
         </View>
@@ -185,7 +129,7 @@ function HorizontalSection({
         renderItem={({ item, index }) => (
           <EstablishmentCard
             item={item}
-            colorClass={PLACEHOLDER_BG[index % PLACEHOLDER_BG.length]}
+            image={PLACEHOLDER_IMGS[index % PLACEHOLDER_IMGS.length]}
           />
         )}
         showsHorizontalScrollIndicator={false}
@@ -197,13 +141,13 @@ function HorizontalSection({
 
 // ---------- Screen ----------
 export default function HomeScreen() {
-  const userName = 'Ali'; 
+  const userName = 'Ali';
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 32 }} // a bit more bottom space
+        contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Greeting */}
@@ -219,15 +163,15 @@ export default function HomeScreen() {
         </View>
 
         {/* Categories (5x2 grid) */}
-        <View className="px-5 mt-12">{/* more spacing before categories */}
+        <View className="px-5 mt-12">
           <Text className="text-[22px] font-bold text-gray-900 mb-4">Categories</Text>
           <FlatList
-           data={CATEGORIES}
-           keyExtractor={(it) => it.id}
-           numColumns={2}
-           scrollEnabled={false}
-           columnWrapperStyle={{ justifyContent: 'space-between' }}
-           renderItem={({ item }) => <CategoryCard name={item.name} img={item.img} />}
+            data={CATEGORIES}
+            keyExtractor={(it) => it.id}
+            numColumns={2}
+            scrollEnabled={false}
+            columnWrapperStyle={{ justifyContent: 'space-between' }}
+            renderItem={({ item }) => <CategoryCard name={item.name} img={item.img} />}
           />
         </View>
       </ScrollView>
