@@ -12,7 +12,8 @@ export default function Layout() {
         headerShown: false,
         tabBarActiveTintColor: primary_purple,     
         tabBarShowLabel: false,
-        tabBarItemStyle: { marginTop: 8 },
+        tabBarItemStyle: { paddingTop: 8},
+        
       }}
     >
       <Tabs.Screen
