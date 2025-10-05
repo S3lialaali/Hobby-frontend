@@ -1,5 +1,4 @@
-// app/(tabs)/index.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +7,12 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { fetchEstablishments, resolveImageUrl } from '../../api';
 
 const makeEst = (i: number) => ({
   id: `est-${i}`,
@@ -31,20 +33,22 @@ const makeEst = (i: number) => ({
   rating: (4 + (i % 10) / 10).toFixed(1),
 });
 
+// ---- default hardcoded fallbacks (kept) ----
 const RECOMMENDED = Array.from({ length: 18 }, (_, i) => makeEst(i)).slice(0, 15);
 const NEW_TO_HOBBY = Array.from({ length: 17 }, (_, i) => makeEst(i + 20)).slice(0, 15);
 const TRENDING = Array.from({ length: 19 }, (_, i) => makeEst(i + 40)).slice(0, 15);
 
+// ⚠️ Keep your category image requires exactly matching file names in /assets
 const CATEGORIES = [
   { id: 'c1', name: 'Sports & fitness', img: require('../../assets/images/categories/sports.jpeg') },
   { id: 'c2', name: 'Water activities', img: require('../../assets/images/categories/swimming.jpeg') },
   { id: 'c3', name: 'Arts & crafts', img: require('../../assets/images/categories/arts.jpeg') },
   { id: 'c4', name: 'Music & performing arts', img: require('../../assets/images/categories/music.jpeg') },
-  { id: 'c5', name: 'Cooking', img: require('../../assets/images/categories/cooking.jpg') },
-  { id: 'c6', name: 'Technology & coding', img: require('../../assets/images/categories/technology.jpg') },
+  { id: 'c5', name: 'Cooking', img: require('../../assets/images/categories/cooking.jpeg') },        // <-- ensure file is .jpeg or change to .jpg if needed
+  { id: 'c6', name: 'Technology & coding', img: require('../../assets/images/categories/technology.jpeg') }, // <-- same note
   { id: 'c7', name: 'Languages', img: require('../../assets/images/categories/language.jpeg') },
-  { id: 'c8', name: 'Outdoor & adventure', img: require('../../assets/images/categories/outdoor.jpg') },
-  { id: 'c9', name: 'Chess & board games', img: require('../../assets/images/categories/chess.jpg') },
+  { id: 'c8', name: 'Outdoor & adventure', img: require('../../assets/images/categories/outdoor.jpeg') },
+  { id: 'c9', name: 'Chess & board games', img: require('../../assets/images/categories/chess.jpeg') },
   { id: 'c10', name: 'Photography & media', img: require('../../assets/images/categories/photography.jpeg') },
 ];
 
@@ -124,13 +128,45 @@ function CategoryCard({ name, img }: { name: string; img: any }) {
   );
 }
 
+
+type BackendEst = {
+  id: number;
+  name: string;
+  category?: string | null;
+  rating?: number | null;
+  address?: string | null;
+  area?: string | null; 
+  image_url?: string | null;
+  logo_url?: string | null;
+};
+
+function adapt(e: BackendEst): ReturnType<typeof makeEst> {
+  return {
+    id: String(e.id),
+    name: e.name ?? 'Untitled',
+    area: e.area || (e.address ? String(e.address).split(',')[0] : '') || '',
+    tag: e.category || 'Hobby',
+    rating: typeof e.rating === 'number' ? e.rating.toFixed(1) : '4.5',
+  };
+}
+
+// For each item, choose an image source (remote if available, else placeholder)
+function buildImageSources(data: BackendEst[]) {
+  return data.map((e, i) => {
+    const url = resolveImageUrl(e.image_url || e.logo_url || '');
+    return url ? { uri: url } : PLACEHOLDER_IMGS[i % PLACEHOLDER_IMGS.length];
+  });
+}
+
 // ---------- Section helpers ----------
 function HorizontalSection({
   title,
   data,
+  images,
 }: {
   title: string;
   data: ReturnType<typeof makeEst>[];
+  images: any[];
 }) {
   const capped = useMemo(() => data.slice(0, 15), [data]);
   return (
@@ -143,7 +179,7 @@ function HorizontalSection({
         renderItem={({ item, index }) => (
           <EstablishmentCard
             item={item}
-            image={PLACEHOLDER_IMGS[index % PLACEHOLDER_IMGS.length]}
+            image={images[index] ?? PLACEHOLDER_IMGS[index % PLACEHOLDER_IMGS.length]}
           />
         )}
         showsHorizontalScrollIndicator={false}
@@ -157,23 +193,91 @@ function HorizontalSection({
 export default function HomeScreen() {
   const userName = 'Ali';
 
+  // (fallback to hardcoded if fetch fails)
+  const [rec, setRec] = useState<ReturnType<typeof makeEst>[]>([]);
+  const [recImgs, setRecImgs] = useState<any[]>([]);
+  const [newest, setNewest] = useState<ReturnType<typeof makeEst>[]>([]);
+  const [newImgs, setNewImgs] = useState<any[]>([]);
+  const [trend, setTrend] = useState<ReturnType<typeof makeEst>[]>([]);
+  const [trendImgs, setTrendImgs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [a, b, c] = await Promise.all([
+        fetchEstablishments({ order: 'rating_desc', limit: 15, status: 'approved' }), // Recommended (by rating)
+        fetchEstablishments({ order: 'newest',      limit: 15, status: 'approved' }), // New to Hobby
+        fetchEstablishments({ order: 'clicks_desc', limit: 15, status: 'approved' }), // Trending
+      ]) as [BackendEst[], BackendEst[], BackendEst[]];
+
+      const aImgs = buildImageSources(a);
+      const bImgs = buildImageSources(b);
+      const cImgs = buildImageSources(c);
+
+      setRec(a.map(adapt));
+      setRecImgs(aImgs);
+      setNewest(b.map(adapt));
+      setNewImgs(bImgs);
+      setTrend(c.map(adapt));
+      setTrendImgs(cImgs);
+    } catch {
+      // fall back silently to hardcoded lists
+      setRec([]);
+      setRecImgs([]);
+      setNewest([]);
+      setNewImgs([]);
+      setTrend([]);
+      setTrendImgs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  // Choose API data if available; otherwise keep your original arrays
+  const recData   = rec.length   ? rec   : RECOMMENDED;
+  const recImages = rec.length   ? recImgs : RECOMMENDED.map((_, i) => PLACEHOLDER_IMGS[i % PLACEHOLDER_IMGS.length]);
+  const newData   = newest.length? newest: NEW_TO_HOBBY;
+  const newImages = newest.length? newImgs: NEW_TO_HOBBY.map((_, i) => PLACEHOLDER_IMGS[i % PLACEHOLDER_IMGS.length]);
+  const trnData   = trend.length ? trend : TRENDING;
+  const trnImages = trend.length ? trendImgs : TRENDING.map((_, i) => PLACEHOLDER_IMGS[i % PLACEHOLDER_IMGS.length]);
+
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Greeting */}
         <View className="px-5 pt-2">
           <Text className="text-[34px] font-extrabold text-gray-900">Hey, {userName}</Text>
         </View>
 
+        {/* Optional loader (no styling changes to sections) */}
+        {loading ? (
+          <View className="px-5 mt-6">
+            <ActivityIndicator />
+          </View>
+        ) : null}
+
         {/* Carousels */}
         <View className="px-5">
-          <HorizontalSection title="Recommended" data={RECOMMENDED} />
-          <HorizontalSection title="New to Hobby" data={NEW_TO_HOBBY} />
-          <HorizontalSection title="Trending" data={TRENDING} />
+          <HorizontalSection title="Recommended" data={recData} images={recImages} />
+          <HorizontalSection title="New to Hobby" data={newData} images={newImages} />
+          <HorizontalSection title="Trending" data={trnData} images={trnImages} />
         </View>
 
         {/* Categories (5x2 grid) */}

@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
-import {View,Text,ScrollView,Image,TouchableOpacity,Linking,Platform,} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, Feather, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, Link } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
+import { fetchEstablishmentById, clickEstablishment, resolveImageUrl } from '../../api';
 
 // ------------------ Types ------------------
 type Activity = {
@@ -16,7 +17,6 @@ type Activity = {
 type Instructor = {
   id: string;
   name: string;
-  role?: string;
   avatarUri?: string;
 };
 
@@ -36,55 +36,9 @@ type Establishment = {
     website?: string;
     address?: string;
   };
+  lat?: number | null;
+  lng?: number | null;
 };
-
-// ------------------ Mock (replace with API later) ------------------
-const mockEstablishment: Establishment = {
-  id: 'est-001',
-  name: 'Milli Trims',
-  heroImageUri: 'https://picsum.photos/1200/800',
-  rating: 4.9,
-  ratingCount: 116,
-  address: 'saar centre, Saar',
-  activities: [
-    { id: 'a1', name: 'Haircut & Beard Trim (with washing)', price: 'BHD 6.50' },
-    { id: 'a2', name: 'Hair Cut', price: 'BHD 4.50' },
-    { id: 'a3', name: 'Kids Haircut (under 12 years)', price: 'BHD 3.50' },
-    { id: 'a4', name: 'Beard Trim', price: 'BHD 3.50' },
-  ],
-  team: [
-    { id: 't1', name: 'Ali Hasan' },
-    { id: 't2', name: 'Mo Noor' },
-    { id: 't3', name: 'Zaid Ahmed' },
-    { id: 't4', name: 'Faisal Rahim' },
-  ],
-  about:
-    "Your go-to place for modern barbering. We blend sophistication with comfort, ensuring every visit is enjoyable. Whether you're after a classic cut or a trendy new style, we cater to all tastes with precision and flair.",
-  contact: {
-    phone: '+973 3333 3333',
-    email: 'hello@millitrims.example',
-    website: 'https://millitrims.example',
-    address: 'saar centre, Saar, Bahrain',
-  },
-};
-
-// University of Bahrain coords (from earlier)
-const UOB_COORDS = { latitude: 26.0509557, longitude: 50.5108481 };
-
-// Light map style (Android / Google Maps only)
-const LIGHT_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5f3e9' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e7ff' }] },
-];
 
 // ------------------ UI helpers ------------------
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -92,8 +46,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function StarRow({ rating, count }: { rating: number; count: number }) {
-  const full = Math.floor(rating);
-  const hasHalf = rating - full >= 0.5;
+  const r = Number.isFinite(rating) ? rating : 0;
+  const full = Math.floor(r);
+  const hasHalf = r - full >= 0.5;
   const stars = Array.from({ length: 5 }, (_, i) => {
     if (i < full) return 'star';
     if (i === full && hasHalf) return 'star-half-full';
@@ -102,30 +57,18 @@ function StarRow({ rating, count }: { rating: number; count: number }) {
 
   return (
     <View className="flex-row items-center">
-      {/* Left: rating number */}
       <Text className="text-[14px] font-semibold text-gray-900 mr-3">
-        {rating.toFixed(1)}
+        {r.toFixed(1)}
       </Text>
-
-      {/* Stars */}
       <View className="flex-row">
         {stars.map((name, idx) => (
-          <FontAwesome
-            key={idx}
-            name={name as any}
-            size={14}
-            color="#111"
-            style={{ marginRight: 3 }}
-          />
+          <FontAwesome key={idx} name={name as any} size={14} color="#111" style={{ marginRight: 3 }} />
         ))}
       </View>
-
-      {/* Count: a bit to the right of the stars */}
-      <Text className="ml-2 text-[13px] text-gray-500">({count})</Text>
+      <Text className="ml-2 text-[13px] text-gray-500">({count || 0})</Text>
     </View>
   );
 }
-
 
 type ActivityRowProps = { item: Activity; onBook: (a: Activity) => void };
 function ActivityRow({ item, onBook }: ActivityRowProps) {
@@ -182,16 +125,122 @@ function ContactRow({
   );
 }
 
+// ------------------ Helpers (format + adapter) ------------------
+const formatBHD = (n: any) => {
+  const v = Number(n);
+  if (!isFinite(v)) return '';
+  return `BHD ${v.toFixed(2)}`;
+};
+
+function adaptBackendToUI(row: any): Establishment {
+  const hero = resolveImageUrl(row?.image_url || row?.logo_url || '');
+
+  const ratingRaw =
+    typeof row?.ratings === 'number' ? row.ratings :
+    typeof row?.rating === 'number' ? row.rating :
+    Number(row?.ratings) || Number(row?.rating) || 0;
+  const rating = Number.isFinite(ratingRaw) ? ratingRaw : 0;
+
+  const ratingCountRaw =
+    typeof row?.review_count === 'number' ? row.review_count : Number(row?.review_count) || 0;
+  const ratingCount = Number.isFinite(ratingCountRaw) ? ratingCountRaw : 0;
+
+  const activities: Activity[] = Array.isArray(row?.activities)
+    ? row.activities.map((a: any) => ({
+        id: String(a.id),
+        name: a.title || a.name || 'Activity',
+        duration: a.duration || undefined,
+        price: a.price != null ? formatBHD(a.price) : '',
+      }))
+    : [];
+
+  const team: Instructor[] = Array.isArray(row?.team)
+    ? row.team.map((m: any) => ({
+        id: String(m.id),
+        name: m.name || 'Instructor',
+        avatarUri: resolveImageUrl(m.profile_placeholder),
+      }))
+    : [];
+
+  return {
+    id: String(row?.id ?? ''),
+    name: row?.name ?? 'Establishment',
+    heroImageUri: hero || '',
+    rating,
+    ratingCount,
+    address: row?.address || '',
+    activities,
+    team,
+    about: row?.description || '',
+    contact: {
+      phone: row?.phone || undefined,
+      email: row?.email || undefined,
+      website: row?.website || undefined,
+      address: row?.address || undefined,
+    },
+    lat: (typeof row?.lat === 'number' ? row.lat : Number(row?.lat)) ?? null,
+    lng: (typeof row?.lng === 'number' ? row.lng : Number(row?.lng)) ?? null,
+  };
+}
+
+// Build a Google Maps link (no API key needed)
+const buildGoogleMapsUrl = (lat?: number | null, lng?: number | null, name?: string) => {
+  if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
+    const label = name ? encodeURIComponent(name) : '';
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}${label ? `&query_place_id=${label}` : ''}`;
+  }
+  return null;
+};
+
 // ------------------ Screen ------------------
 export default function EstablishmentScreen() {
   const { id, name } = useLocalSearchParams<{ id?: string; name?: string }>();
   const insets = useSafeAreaInsets();
 
-  const est: Establishment = {
-    ...mockEstablishment,
-    id: id ?? mockEstablishment.id,
-    name: name ?? mockEstablishment.name,
-  };
+  const [est, setEst] = useState<Establishment>({
+    id: String(id ?? ''),
+    name: String(name ?? '') || 'Establishment',
+    heroImageUri: '',
+    rating: 0,
+    ratingCount: 0,
+    address: '',
+    activities: [],
+    team: [],
+    about: '',
+    contact: {},
+    lat: null,
+    lng: null,
+  });
+
+  useEffect(() => {
+    const estId = Number(id);
+    if (!estId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await fetchEstablishmentById(estId);
+        if (!cancelled && data) {
+          const ui = adaptBackendToUI(data);
+          setEst((prev) => ({ ...prev, ...ui }));
+        }
+      } catch {}
+    })();
+
+    clickEstablishment(estId).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const coords = useMemo(() => {
+    if (typeof est.lat === 'number' && typeof est.lng === 'number' && isFinite(est.lat) && isFinite(est.lng)) {
+      return { latitude: est.lat as number, longitude: est.lng as number };
+    }
+    return null;
+  }, [est.lat, est.lng]);
 
   const onBook = (a: Activity) => {
     console.log('Book:', a.id, a.name);
@@ -203,6 +252,15 @@ export default function EstablishmentScreen() {
     est.contact.website &&
     Linking.openURL(est.contact.website.startsWith('http') ? est.contact.website : `https://${est.contact.website}`);
 
+  const openDirections = () => {
+    const url = buildGoogleMapsUrl(est.lat, est.lng, est.name);
+    if (url) Linking.openURL(url);
+  };
+
+  const heroSource = est.heroImageUri
+    ? { uri: est.heroImageUri }
+    : require('../../assets/images/establishment_images/placeholder1.jpeg');
+
   return (
     <>
       {/* Hide header (removes title & back arrow) */}
@@ -213,7 +271,7 @@ export default function EstablishmentScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
           {/* Hero image */}
           <View>
-            <Image source={{ uri: est.heroImageUri }} className="w-full h-72" resizeMode="cover" />
+            <Image source={heroSource} className="w-full h-72" resizeMode="cover" />
 
             {/* Back button -> Home (Tabs) */}
             <Link href="/" replace asChild>
@@ -279,29 +337,41 @@ export default function EstablishmentScreen() {
             </Text>
           </View>
 
-          {/* Native map  */}
+          {/* Native map (fixed to the pin) */}
           <View className="px-5 mt-10">
             <View className="w-full h-56 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
-              <MapView
-                style={{ width: '100%', height: '100%' }}
-                initialRegion={{
-                  ...UOB_COORDS,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                mapType={Platform.OS === 'ios' ? ('mutedStandard' as any) : 'standard'}
-                customMapStyle={Platform.OS === 'android' ? LIGHT_MAP_STYLE : []}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}
-                showsCompass={false}
-                toolbarEnabled={false}
-                liteMode
-              >
-                <Marker coordinate={UOB_COORDS} title="University of Bahrain" />
-              </MapView>
+              {coords && (
+                <MapView
+                  style={{ width: '100%', height: '100%' }}
+                  region={{
+                    ...coords,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  showsCompass={false}
+                  toolbarEnabled={false}
+                >
+                  <Marker coordinate={coords} title={est.name} />
+                </MapView>
+              )}
             </View>
+
+            {/* Get Directions link under the map */}
+            {coords && (
+              <TouchableOpacity
+                onPress={openDirections}
+                activeOpacity={0.7}
+                className="mt-3"
+              >
+                <Text className="text-[14px] underline" style={{ color: '#7C3AED' }}>
+                  Get Directions
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Contact */}
