@@ -367,7 +367,7 @@ export default function EstablishmentScreen() {
                 activeOpacity={0.7}
                 className="mt-3"
               >
-                <Text className="text-[14px] underline" style={{ color: '#7C3AED' }}>
+                <Text className="pl-1 text-[16px] font-semibold text-[#7C3AED]" >
                   Get Directions
                 </Text>
               </TouchableOpacity>
