@@ -38,14 +38,14 @@ const RECOMMENDED = Array.from({ length: 18 }, (_, i) => makeEst(i)).slice(0, 15
 const NEW_TO_HOBBY = Array.from({ length: 17 }, (_, i) => makeEst(i + 20)).slice(0, 15);
 const TRENDING = Array.from({ length: 19 }, (_, i) => makeEst(i + 40)).slice(0, 15);
 
-// ⚠️ Keep your category image requires exactly matching file names in /assets
+
 const CATEGORIES = [
   { id: 'c1', name: 'Sports & fitness', img: require('../../assets/images/categories/sports.jpeg') },
   { id: 'c2', name: 'Water activities', img: require('../../assets/images/categories/swimming.jpeg') },
   { id: 'c3', name: 'Arts & crafts', img: require('../../assets/images/categories/arts.jpeg') },
   { id: 'c4', name: 'Music & performing arts', img: require('../../assets/images/categories/music.jpeg') },
-  { id: 'c5', name: 'Cooking', img: require('../../assets/images/categories/cooking.jpeg') },        // <-- ensure file is .jpeg or change to .jpg if needed
-  { id: 'c6', name: 'Technology & coding', img: require('../../assets/images/categories/technology.jpeg') }, // <-- same note
+  { id: 'c5', name: 'Cooking', img: require('../../assets/images/categories/cooking.jpeg') },        
+  { id: 'c6', name: 'Technology & coding', img: require('../../assets/images/categories/technology.jpeg') }, 
   { id: 'c7', name: 'Languages', img: require('../../assets/images/categories/language.jpeg') },
   { id: 'c8', name: 'Outdoor & adventure', img: require('../../assets/images/categories/outdoor.jpeg') },
   { id: 'c9', name: 'Chess & board games', img: require('../../assets/images/categories/chess.jpeg') },
@@ -55,10 +55,7 @@ const CATEGORIES = [
 // ---------- Placeholder images for establishments ----------
 const PLACEHOLDER_IMGS = [
   require('../../assets/images/establishment_images/placeholder1.jpeg'),
-  require('../../assets/images/establishment_images/placeholder2.jpeg'),
-  require('../../assets/images/establishment_images/placeholder3.jpeg'),
-  require('../../assets/images/establishment_images/placeholder4.jpeg'),
-  require('../../assets/images/establishment_images/placeholder5.jpeg'),
+ 
 ];
 
 // ---------- Card components ----------
@@ -266,7 +263,7 @@ export default function HomeScreen() {
           <Text className="text-[34px] font-extrabold text-gray-900">Hey, {userName}</Text>
         </View>
 
-        {/* Optional loader (no styling changes to sections) */}
+        {/* Optional loader  */}
         {loading ? (
           <View className="px-5 mt-6">
             <ActivityIndicator />
