@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, Feather, MaterialIcons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, Link } from 'expo-router';
+import { Stack, useLocalSearchParams, Link, useRouter } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import { fetchEstablishmentById, clickEstablishment, resolveImageUrl } from '../../api';
 
@@ -19,6 +19,7 @@ type Instructor = {
   name: string;
   avatarUri?: string;
 };
+
 
 type Establishment = {
   id: string;
@@ -95,7 +96,7 @@ function ActivityRow({ item, onBook }: ActivityRowProps) {
 }
 
 function InstructorCard({ person }: { person: Instructor }) {
-  const placeholder = require('../../assets/images/instructors/profile_placeholder.jpeg');
+  const placeholder = require('../../assets/images/establishment_images/placeholder1.jpeg');
   return (
     <View className="w-24 items-center mr-5">
       <View className="w-20 h-20 rounded-full overflow-hidden bg-gray-200">
@@ -155,12 +156,19 @@ function adaptBackendToUI(row: any): Establishment {
     : [];
 
   const team: Instructor[] = Array.isArray(row?.team)
-    ? row.team.map((m: any) => ({
-        id: String(m.id),
-        name: m.name || 'Instructor',
-        avatarUri: resolveImageUrl(m.profile_placeholder),
-      }))
-    : [];
+  ? row.team.map((m: any) => ({
+      id: String(m.id),
+      name: m.name || 'Instructor',
+      avatarUri: resolveImageUrl(
+        m.profile_picture ??     
+        m.profile_placeholder ?? 
+        m.avatar ??
+        m.image_url ??
+        m.url ??
+        ''                       
+      ),
+    }))
+  : [];
 
   return {
     id: String(row?.id ?? ''),
@@ -196,6 +204,7 @@ const buildGoogleMapsUrl = (lat?: number | null, lng?: number | null, name?: str
 export default function EstablishmentScreen() {
   const { id, name } = useLocalSearchParams<{ id?: string; name?: string }>();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [est, setEst] = useState<Establishment>({
     id: String(id ?? ''),
@@ -242,8 +251,13 @@ export default function EstablishmentScreen() {
     return null;
   }, [est.lat, est.lng]);
 
+  // NAVIGATE to activity screen when user taps Book
   const onBook = (a: Activity) => {
-    console.log('Book:', a.id, a.name);
+    // pass id and name/title as params (activity screen reads id)
+    router.push({
+      pathname: '/screens/activity',
+      params: { id: a.id, title: a.name },
+    });
   };
 
   const openTel = () => est.contact.phone && Linking.openURL(`tel:${est.contact.phone}`);
@@ -263,17 +277,15 @@ export default function EstablishmentScreen() {
 
   return (
     <>
-      {/* Hide header (removes title & back arrow) */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Disable top safe-area inset so the image reaches the very top */}
       <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
           {/* Hero image */}
           <View>
             <Image source={heroSource} className="w-full h-72" resizeMode="cover" />
 
-            {/* Back button -> Home (Tabs) */}
+            {/* Back button */}
             <Link href="/" replace asChild>
               <TouchableOpacity
                 activeOpacity={0.8}
@@ -337,7 +349,7 @@ export default function EstablishmentScreen() {
             </Text>
           </View>
 
-          {/* Native map (fixed to the pin) */}
+          {/* Native map  */}
           <View className="px-5 mt-10">
             <View className="w-full h-56 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
               {coords && (

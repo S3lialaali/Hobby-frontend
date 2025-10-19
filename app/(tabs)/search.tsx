@@ -1,14 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  FlatList,
-  ActivityIndicator,
-  LayoutChangeEvent,
-} from 'react-native';
+import {View,Text, TextInput,TouchableOpacity,Image,FlatList,ActivityIndicator,LayoutChangeEvent,} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import MapView, { Marker, Callout, LatLng } from 'react-native-maps';
@@ -342,7 +333,7 @@ export default function SearchTab() {
   // ---------- Header (Search + Filters container) ----------
   const HeaderContent = (
     <View onLayout={(e: LayoutChangeEvent) => setHeaderHeight(e.nativeEvent.layout.height)} className="bg-white">
-      {/* Search pill (slightly up via top padding) */}
+      {/* Search pill */}
       <View className="px-5" style={{ paddingTop: searchTopPad }}>
         <View className="flex-row items-center bg-white rounded-full border border-gray-200 px-3 py-2 shadow">
           <Feather name="search" size={18} color="#111" />
@@ -399,7 +390,6 @@ export default function SearchTab() {
     </View>
   );
 
-  // Downward dropdown overlays (anchored under the header)
   const SortDropdown = (
     <DropdownOverlay
       visible={sortOpen && mode === 'list'}
@@ -442,7 +432,7 @@ export default function SearchTab() {
 
   // ---------- RENDER ----------
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-white" edges={['top']}>
       {mode === 'list' ? (
         <View className="flex-1">
           {/* Dropdown overlays */}
@@ -494,7 +484,7 @@ export default function SearchTab() {
           )}
         </View>
       ) : (
-        // MAP MODE — map fills safe area; search bar overlays on top
+        // MAP MODE
         <View className="flex-1">
           {/* Overlay search bar */}
           <View className="absolute left-0 right-0 z-10">
