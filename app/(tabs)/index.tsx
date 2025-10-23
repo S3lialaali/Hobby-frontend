@@ -1,14 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import {View,Text,FlatList,ScrollView,TouchableOpacity,Image,ActivityIndicator,RefreshControl,} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -134,7 +125,7 @@ function EstablishmentCard({
   );
 }
 
-// Accept onPress so Home → Search deep-link remains
+// Accept onPress so Home → Search 
 function CategoryCard({ name, img, onPress }: { name: string; img: any; onPress?: () => void }) {
   return (
     <TouchableOpacity activeOpacity={0.9} className="flex-1" onPress={onPress}>
@@ -262,7 +253,7 @@ export default function HomeScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-white" edges={['top']}>
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32 }}
