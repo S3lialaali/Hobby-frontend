@@ -55,7 +55,7 @@ export default function LoginScreen() {
         <View className="absolute bottom-10 left-0 right-0 items-center">
           <Text className="text-gray-700">
             Don't have an account?{" "}
-            <Link href="./signup" replace className="text-[#E1B127] font-semibold">
+            <Link href="./register/role" replace className="text-[#E1B127] font-semibold">
                 Sign up
             </Link>
           </Text>

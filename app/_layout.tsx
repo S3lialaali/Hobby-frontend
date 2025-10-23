@@ -24,6 +24,10 @@ export default function RootLayout() {
         {/* NEW: make sure these exist */}
         <Stack.Screen name="screens/login"  options={{ headerShown: false, title: "Login" }} />
         <Stack.Screen name="screens/signup" options={{ headerShown: false, title: "Sign up" }} />
+        {/* role-based signup screens */}
+        <Stack.Screen name="screens/register/role" options={{ headerShown: false, title: "Choose role"}} />
+        <Stack.Screen name="screens/register/user" options={{ headerShown: false, title: "Sign up (User)"}} />
+        <Stack.Screen name="screens/register/business" options={{ headerShown: false, title: "Sign up (Business)"}} />
       </Stack>
     </SafeAreaProvider>
   );
