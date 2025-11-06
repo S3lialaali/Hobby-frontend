@@ -1,53 +1,93 @@
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Pressable} from "react-native";
 import { Link, router } from "expo-router";
+import { registerUser} from "../../../api/auth";
+import { getApiError } from "../../../api/client";
 
 export default function SignupUser() {
-  const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [confirm, setConfirm] = React.useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const createAccount = () => {
-    // Later: call /auth/signup with role="user"
-    router.replace("/(tabs)");
-  };
+  async function onSubmit() {
+    if (!username || !email || !password) {
+      Alert.alert("Missing fields", "Username, email and password are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await registerUser({ 
+        username, 
+        email,
+        password,
+        phone: phone || null,
+      });
+      if (response?.message === "user_created") {
+        Alert.alert("Account created", "You can now sign in.",
+          [{ text: "OK", onPress: () => router.replace("/screens/login")},
+          ]
+        );
+      } else {
+        Alert.alert("Signup", "Account created.");
+        router.replace("/screens/login");
+      }
+    } catch (err) {
+      const msg = getApiError(err);
+      if (msg === "email_or_username_exists" || msg === "conflict") {
+        Alert.alert("Already registered", "Email or username already exists.");
+      } else {
+        Alert.alert("Signup failed", msg)
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} className="flex-1 bg-white">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <View className="flex-1 items-center justify-center px-6 py-8">
-          <Text className="text-3xl font-bold text-[#1F4278] mb-8">Sign up (User)</Text>
+    <View className="flex-1 p-5 justify-center">
+      <Text className="text-xl font-semibold mb-3">Create an account</Text>
 
-          <View className="w-full gap-4">
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Full name</Text>
-              <TextInput value={name} onChangeText={setName} placeholder="Your name" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+      <TextInput
+        placeholder="Username (e.g., hassan97)"
+        placeholderTextColor="rgba(60,60,67,0.6)"
+        value={username}
+        onChangeText={setUsername}
+        className="border rounded-xl px-4 py-3 mb-3"
+      />
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Email</Text>
-              <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+      <TextInput
+        placeholder="Email (e.g., you@example.com)"
+        placeholderTextColor="rgba(60,60,67,0.6)"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
+        className="border rounded-xl px-4 py-3 mb-3"
+      />
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Password</Text>
-              <TextInput value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+      <TextInput
+        placeholder="Phone (optional, e.g., +9733xxxxxxx)"
+        placeholderTextColor="rgba(60,60,67,0.6)"
+        keyboardType="phone-pad"
+        value={phone}
+        onChangeText={setPhone}
+        className="border rounded-xl px-4 py-3 mb-3"
+      />
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Confirm password</Text>
-              <TextInput value={confirm} onChangeText={setConfirm} placeholder="••••••••" secureTextEntry className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+      <TextInput
+        placeholder="Password (min 8 chars)"
+        placeholderTextColor="rgba(60,60,67,0.6)"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+        className="border rounded-xl px-4 py-3 mb-4"
+      />
 
-            <TouchableOpacity onPress={createAccount} className="mt-2 rounded-2xl bg-[#1F4278] py-3 items-center">
-              <Text className="text-white text-base font-semibold">Sign up</Text>
-            </TouchableOpacity>
-
-            <Link href="./role" replace className="text-center text-[#1F4278] mt-3">Back</Link>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Pressable onPress={onSubmit} disabled={loading} className="bg-black rounded-xl px-4 py-3 items-center">
+        {loading ? <ActivityIndicator /> : <Text className="text-white font-semibold">Create account</Text>}
+      </Pressable>
+    </View>
   );
 }

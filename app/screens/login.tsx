@@ -1,66 +1,64 @@
 import { Link, router } from "expo-router";
-import React from "react";
-import { KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View, Alert, Pressable, ActivityIndicator } from "react-native";
+import { login } from "../../api/auth";
+import { getApiError } from "../../api/client";
 
 export default function LoginScreen() {
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [identifier, setIdentifier] = useState(""); //email OR phone
+  const [loading, setLoading] = useState(false);
 
-  const enterApp = () => {
-    // Allow any input (even empty) to pass into app
-    router.replace("/(tabs)");
-  };
+  async function onSubmit() {
+    if (!identifier || !password) {
+      Alert.alert("Missing fields", "Please neter yout email/phone number and password.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await login({ identifier, password});
+      if (response.business && response.business.status !== "approved") {
+        Alert.alert("Pending approval", "Your business is still awaiting approval.");
+        //We can place optional pending screen here router.replace("/screens/pending");
+      } else {
+        router.replace("/(tabs)"); //redirect to home page
+      }
+    } catch (err) {
+      Alert.alert("Login failed", getApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.select({ ios: "padding", android: undefined })}
-      className="flex-1 bg-white"
-    >
-      <View className="flex-1 items-center justify-center px-6">
-        <Text className="text-3xl font-bold text-[#1F4278] mb-8">Welcome to Hobby!</Text>
+    <View className="flex-1 p-5 justify-center">
+      <Text className="text-xl font-semibold mb-3">Sign in</Text>
 
-        <View className="w-full gap-4">
-          <View>
-            <Text className="text-base text-[#143052] mb-2">Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base"
-            />
-          </View>
+      <TextInput
+        placeholder="Email or phone"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        value={identifier}
+        onChangeText={setIdentifier}
+        className="border rounded-xl px-4 py-3 mb-3"
+      />
+      <TextInput
+        placeholder="Password"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+        className="border rounded-xl px-4 py-3 mb-4"
+      />
 
-          <View>
-            <Text className="text-base text-[#143052] mb-2">Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base"
-            />
-          </View>
+      <Pressable onPress={onSubmit} disabled={loading} className="bg-black rounded-xl px-4 py-3 items-center">
+        {loading ? <ActivityIndicator /> : <Text className="text-white font-semibold">Login</Text>}
+      </Pressable>
+      {/* Sign up link -> role.tsx */}
+      <Pressable onPress={() => router.push("/screens/register/role")} className="mt-4 items-center">
+        <Text className="text-blue-600">Don’t have an account? Sign up</Text>
+      </Pressable>
 
-          <TouchableOpacity onPress={enterApp} className="mt-2 rounded-2xl bg-[#1F4278] py-3 items-center">
-            <Text className="text-white text-base font-semibold">Log in</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={enterApp} className="rounded-2xl border border-[#E1B127] py-3 items-center">
-            <Text className="text-[#1F4278] text-base font-semibold">Continue without account</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View className="absolute bottom-10 left-0 right-0 items-center">
-          <Text className="text-gray-700">
-            Don't have an account?{" "}
-            <Link href="./register/role" replace className="text-[#E1B127] font-semibold">
-                Sign up
-            </Link>
-          </Text>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
