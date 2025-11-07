@@ -1,124 +1,257 @@
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import React, { useState, useMemo} from "react";
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Link, router } from "expo-router";
+import { registerBusiness } from "@/api/auth";
+import { getApiError } from "@/api/client";
 
-type LatLng = { lat: number; lng: number } | null;
-
-function parseLatLngFromGoogleMapsUrl(url: string): LatLng {
+//function to parse latitude and longitude from google maps urls
+function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null {
   try {
-    const decoded = decodeURIComponent(url.trim());
-
-    // 1) @lat,lng pattern
-    const atMatch = decoded.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+    //1- lat, lng, zoom patter regex
+    const atMatch = url.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
     if (atMatch) {
       const lat = parseFloat(atMatch[1]);
       const lng = parseFloat(atMatch[2]);
-      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+    //2- query parmeters 
+    const u = new URL(url);
+    const q = u.searchParams.get("q") || u.searchParams.get("query");
+    if (q) {
+      const parts = q.split(",").map(s => s.trim());
+      if (parts.length >= 2) {
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng};
+      }
     }
 
-    // 2) q=lat,lng or ll=lat,lng
-    const qMatch = decoded.match(/[?&](?:q|ll)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
-    if (qMatch) {
-      const lat = parseFloat(qMatch[1]);
-      const lng = parseFloat(qMatch[2]);
-      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+    //3- place links
+    const bangMatch = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if (bangMatch) {
+      const lat = parseFloat(bangMatch[1]);
+      const lng = parseFloat(bangMatch[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng};
     }
-
-    // 3) q=loc:lat,lng
-    const qLoc = decoded.match(/[?&]q=loc:(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
-    if (qLoc) {
-      const lat = parseFloat(qLoc[1]);
-      const lng = parseFloat(qLoc[2]);
-      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
-    }
-
     return null;
   } catch {
     return null;
   }
 }
 
+//function to display address in format: Country – City – Block – Road – Address
+function buildFormattedAddress(country: string, city: string, block: string, road: string, address: string) {
+  const parts = [country, city, block, road, address].map(s => (s || "").trim());
+  return `[ ${parts.join(", ")} ]`;
+}
+
 export default function SignupBusiness() {
-  const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [phone, setPhone] = React.useState("");
-  const [mapsUrl, setMapsUrl] = React.useState("");
-  const [latLng, setLatLng] = React.useState<LatLng>(null);
+  //account info
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+
+  //establishment info 
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
 
   // Address fields: Country – City – Block – Road – Address
-  const [country, setCountry] = React.useState("");
-  const [city, setCity] = React.useState("");
-  const [block, setBlock] = React.useState("");
-  const [road, setRoad] = React.useState("");
-  const [address, setAddress] = React.useState("");
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [block, setBlock] = useState("");
+  const [road, setRoad] = useState("");
+  const [address, setAddress] = useState("");
 
-  React.useEffect(() => {
-    setLatLng(parseLatLngFromGoogleMapsUrl(mapsUrl));
-  }, [mapsUrl]);
+  //google maps url
+  const [mapUrl, setMapUrl] = useState("");
+  const coords = useMemo(() => (mapUrl ? parseGoogleMapsLatLng(mapUrl) : null), [mapUrl]);
+  const formattedAddress = useMemo(() => buildFormattedAddress(country, city, block, road, address), [country, city, block, road, address]);
 
-  const createAccount = () => {
-    // Later: call /auth/signup with role="business" and include { lat,lng, address parts }
-    router.replace("/(tabs)");
-  };
+  const [loading, setLoading] = useState(false);
 
-  return (
-    <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} className="flex-1 bg-white">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <View className="flex-1 items-center justify-center px-6 py-8">
-          <Text className="text-3xl font-bold text-[#1F4278] mb-8 text-center">Sign up (Business)</Text>
+  async function onSubmit() {
+    //add more fields later this is enough for now 
+    if (!username || !email || !password || !name) {
+      Alert.alert("Missing info", "Username, emaiil, password, and establishment name are required.");
+      return;
+    }
+    //require valig google maps link for location
+    if (!mapUrl || !coords) {
+      Alert.alert("Location required", "Paste a valid Google Maps link so we can get your business location.");
+      return;
+    }
 
-          <View className="w-full gap-4">
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Business name</Text>
-              <TextInput value={name} onChangeText={setName} placeholder="Your establishment name" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+    const { lat, lng } = coords;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      Alert.alert("Invalid coordinates", "Please provide a valid Google Maps link.");
+      return;
+    }
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Email</Text>
-              <TextInput value={email} onChangeText={setEmail} placeholder="business@example.com" keyboardType="email-address" autoCapitalize="none" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+    setLoading(true);
+    try {
+      await registerBusiness({
+        username,
+        email,
+        password,
+        phone: phone || null,
+        establishment_name: name,
+        establishment_description: description || null,
+        establishment_category: category || null,
+        establishment_address: formattedAddress,
+        lat, lng,
+      });
+      Alert.alert("Application submitted", "Your business is pending approval. You will be notified once it's approved.",
+        [{ text: "OK", onPress: () => router.replace("/screens/login")}]
+      );
+    } catch (err) {
+      const msg = getApiError(err);
+      if (msg === "email_or_username_exists" || msg === "conflict") {
+        Alert.alert("Already registered", "Email or username already exists.");
+      } else {
+        Alert.alert("Signup failed", msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Phone (optional)</Text>
-              <TextInput value={phone} onChangeText={setPhone} placeholder="+973 3xxxxxxx" keyboardType="phone-pad" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+    return (
+    <KeyboardAvoidingView
+      className="flex-1"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // adjust if you have a header
+    >
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 100 }} // extra bottom space so last inputs aren’t hidden
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
+        <Text className="text-xl font-semibold mb-3">Register your establishment</Text>
 
-            <View>
-              <Text className="text-base text-[#143052] mb-2">Google Maps link (required)</Text>
-              <TextInput
-                value={mapsUrl}
-                onChangeText={setMapsUrl}
-                placeholder="Paste Google Maps link with location"
-                autoCapitalize="none"
-                autoCorrect={false}
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base"
-              />
-              <Text className="text-sm text-gray-600 mt-2">
-                {latLng
-                  ? `Parsed lat/lng: ${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`
-                  : "Tip: Paste a link like https://maps.google.com/?q=26.1234,50.5678 or a place link with @lat,lng"}
-              </Text>
-            </View>
+        {/* Account */}
+        <Text className="font-semibold mt-1 mb-2">Account</Text>
+        <TextInput
+          placeholder="Username (e.g., bahrain-fitness)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Email (e.g., owner@center.com)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Phone (e.g., +9733xxxxxxx)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Password (min 8 chars)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          className="border rounded-xl px-4 py-3 mb-4"
+        />
 
-            {/* Address */}
-            <View className="mt-2">
-              <Text className="text-base text-[#143052] mb-2">Address</Text>
-              <Text className="text-xs text-gray-600 mb-2">Format: Country – City – Block – Road – Address</Text>
+        {/* Establishment */}
+        <Text className="font-semibold mt-1 mb-2">Establishment</Text>
+        <TextInput
+          placeholder="Establishment name*"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={name}
+          onChangeText={setName}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Description (courses, facilities, etc.)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={description}
+          onChangeText={setDescription}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Category (e.g., Water activities, Football)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={category}
+          onChangeText={setCategory}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
 
-              <TextInput value={country} onChangeText={setCountry} placeholder="Country" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base mb-2" />
-              <TextInput value={city} onChangeText={setCity} placeholder="City" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base mb-2" />
-              <TextInput value={block} onChangeText={setBlock} placeholder="Block" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base mb-2" />
-              <TextInput value={road} onChangeText={setRoad} placeholder="Road" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base mb-2" />
-              <TextInput value={address} onChangeText={setAddress} placeholder="Address / Building / Unit" className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base" />
-            </View>
+        {/* Address components */}
+        <Text className="font-semibold mt-1 mb-2">Address (separate fields)</Text>
+        <TextInput
+          placeholder="Country (e.g., Bahrain)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={country}
+          onChangeText={setCountry}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="City (e.g., Manama)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={city}
+          onChangeText={setCity}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Block (e.g., 338)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={block}
+          onChangeText={setBlock}
+          keyboardType="numeric"
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Road (e.g., 1705)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={road}
+          onChangeText={setRoad}
+          className="border rounded-xl px-4 py-3 mb-3"
+        />
+        <TextInput
+          placeholder="Address (building/floor/apartment)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={address}
+          onChangeText={setAddress}
+          className="border rounded-xl px-4 py-3 mb-2"
+        />
+        <Text className="text-gray-600 mb-4">Formatted: {formattedAddress}</Text>
 
-            <TouchableOpacity onPress={createAccount} className="mt-3 rounded-2xl bg-[#1F4278] py-3 items-center">
-              <Text className="text-white text-base font-semibold">Sign up as business</Text>
-            </TouchableOpacity>
+        {/* Google Maps link → lat/lng */}
+        <Text className="font-semibold mt-1 mb-2">Location</Text>
+        <TextInput
+          placeholder="Paste full Google Maps link (must include @lat,lng or ?q=lat,lng)"
+          placeholderTextColor="rgba(60,60,67,0.6)"
+          value={mapUrl}
+          onChangeText={setMapUrl}
+          autoCapitalize="none"
+          className="border rounded-xl px-4 py-3 mb-2"
+        />
+        <Text className="text-gray-600 mb-4">
+          {coords ? `Detected: lat ${coords.lat.toFixed(6)}, lng ${coords.lng.toFixed(6)}` : "No coordinates detected yet"}
+        </Text>
 
-            <Link href="./role" replace className="text-center text-[#1F4278] mt-3">Back</Link>
-          </View>
-        </View>
+        <Pressable
+          onPress={onSubmit}
+          disabled={loading}
+          className="bg-black rounded-xl px-4 py-3 items-center mb-10"
+        >
+          {loading ? <ActivityIndicator /> : <Text className="text-white font-semibold">Submit</Text>}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );

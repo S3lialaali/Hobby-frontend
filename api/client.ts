@@ -9,8 +9,8 @@ export const api = axios.create({
 
 //helper for backend errors
 export function getApiError(error:any): string {
-    const data = error?.repsonse?.data;
+    const data = error?.response?.data;
     if (!data) return error?.message ?? "Network error";
     if (typeof data === "string") return data;
-    return data.error || data.nessage || "Request failed";
+    return data.error || data.message || "Request failed";
 }

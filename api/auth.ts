@@ -20,10 +20,10 @@ export type RegisterBusinessPayload = {
     email: string;
     password: string;
     phone?: string | null;
-    establishmentName: string;
-    establishmentDescription?: string | null;
-    establishmentCategory?: string | null;
-    establishmentAddress?: string | null;
+    establishment_name: string;
+    establishment_description?: string | null;
+    establishment_category?: string | null;
+    establishment_address?: string | null;
     lat?: number | null;
     lng?: number | null;
 };
