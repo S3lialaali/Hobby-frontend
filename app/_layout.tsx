@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import { Stack } from "expo-router";
 import "./globals.css";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
@@ -16,7 +17,9 @@ export default function RootLayout() {
     <SafeAreaProvider initialMetrics={METRICS}>
       <StatusBar style="dark" />
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         <Stack.Screen
           name="screens/establishment"
           options={{
