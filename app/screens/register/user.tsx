@@ -25,13 +25,10 @@ export default function SignupUser() {
         phone: phone || null,
       });
       if (response?.message === "user_created") {
-        Alert.alert("Account created", "You can now sign in.",
-          [{ text: "OK", onPress: () => router.replace("/screens/login")},
-          ]
-        );
+        router.replace("/(tabs)")
       } else {
         Alert.alert("Signup", "Account created.");
-        router.replace("/screens/login");
+        router.replace("/(tabs)");
       }
     } catch (err) {
       const msg = getApiError(err);
