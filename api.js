@@ -1,5 +1,5 @@
 // ---------- Base URL (use your laptop's LAN IP) ----------
-export const API_BASE_URL = "http://172.20.10.8:3000"; // ← change if your LAN IP changes
+export const API_BASE_URL = "http://10.1.204.86:3000"; // ← change if your LAN IP changes
 
 export function resolveImageUrl(u) {
   if (!u) return null;
@@ -271,4 +271,17 @@ export async function updateBooking(id, patch) {
 export async function fetchBookingById(id) {
   const url = `${API_BASE_URL}/api/bookings/${id}`;
   return (await getJSON(url)) ?? null;
+}
+
+/** POST /users/report  { user_id?: number, message: string } */
+export async function reportProblem(payload = {}) {
+  const url = `${API_BASE_URL}/users/report`;
+  return await sendJSON(url, "POST", payload);
+}
+
+/** GET /users/reports → list of reports */
+export async function fetchUserReports() {
+  const url = `${API_BASE_URL}/users/reports`;
+  const data = await getJSON(url);
+  return Array.isArray(data) ? data : [];
 }
