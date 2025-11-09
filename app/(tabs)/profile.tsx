@@ -153,6 +153,11 @@ export default function ProfileScreen() {
                 label="My bookings"
                 onPress={() => router.push('/(tabs)/booking')}
               />
+              <Row
+                icon={<Feather name="star" size={18} color={VIOLET} />}
+                label="My ratings"
+                onPress={() => router.push('/(tabs)/booking')}
+              />
               <View className="h-px bg-gray-200" />
               <Row
                 icon={<Feather name="search" size={18} color={VIOLET} />}
