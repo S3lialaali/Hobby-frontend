@@ -286,7 +286,7 @@ export default function EstablishmentScreen() {
             <Image source={heroSource} className="w-full h-72" resizeMode="cover" />
 
             {/* Back button */}
-            <Link href="/" replace asChild>
+            <Link href="/(tabs)" replace asChild>
               <TouchableOpacity
                 activeOpacity={0.8}
                 hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
