@@ -2,7 +2,7 @@ import React, { useState, useMemo} from "react";
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Link, router } from "expo-router";
 import { registerBusiness } from "@/api/auth";
-import { getApiError } from "@/api/client";
+import { getApiError, setAccessToken } from "@/api/client";
 
 //function to parse latitude and longitude from google maps urls
 function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null {
@@ -91,7 +91,7 @@ export default function SignupBusiness() {
 
     setLoading(true);
     try {
-      await registerBusiness({
+      const response = await registerBusiness({
         username,
         email,
         password,
@@ -102,6 +102,9 @@ export default function SignupBusiness() {
         establishment_address: formattedAddress,
         lat, lng,
       });
+      
+      console.log("REGISTER BUSINESS RESPONSE ->",response);
+      setAccessToken(response.accessToken);
       Alert.alert("Application submitted", "Your business is pending approval. You will be notified once it's approved.",
         [{ text: "OK", onPress: () => router.replace("/screens/login")}]
       );

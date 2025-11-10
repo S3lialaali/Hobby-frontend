@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Pressable} from "react-native";
 import { Link, router } from "expo-router";
 import { registerUser} from "../../../api/auth";
-import { getApiError } from "../../../api/client";
+import { getApiError, setAccessToken } from "../../../api/client";
 
 export default function SignupUser() {
   const [username, setUsername] = useState("");
@@ -24,6 +24,8 @@ export default function SignupUser() {
         password,
         phone: phone || null,
       });
+      setAccessToken(response.accessToken);
+      console.log("REGISTER USER ->",response);
       if (response?.message === "user_created") {
         router.replace("/(tabs)")
       } else {

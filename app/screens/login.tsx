@@ -2,7 +2,7 @@ import { Link, router } from "expo-router";
 import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View, Alert, Pressable, ActivityIndicator } from "react-native";
 import { login } from "../../api/auth";
-import { getApiError } from "../../api/client";
+import { getApiError, setAccessToken } from "../../api/client";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -18,6 +18,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await login({ identifier, password});
+      setAccessToken(response.accessToken);
+      console.log("LOGIN RESPONSE ->", response);
       if (response.business && response.business.status !== "approved") {
         Alert.alert("Pending approval", "Your business is still awaiting approval.");
         //We can place optional pending screen here router.replace("/screens/pending");
@@ -55,7 +57,7 @@ export default function LoginScreen() {
         {loading ? <ActivityIndicator /> : <Text className="text-white font-semibold">Login</Text>}
       </Pressable>
       {/* Sign up link -> role.tsx */}
-      <Pressable onPress={() => router.push("/screens/register/role")} className="mt-4 items-center">
+      <Pressable onPress={() => router.push("/screens/signup/role")} className="mt-4 items-center">
         <Text className="text-blue-600">Don’t have an account? Sign up</Text>
       </Pressable>
 
