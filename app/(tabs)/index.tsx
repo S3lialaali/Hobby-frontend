@@ -3,7 +3,9 @@ import {View,Text,FlatList,ScrollView,TouchableOpacity,Image,ActivityIndicator,R
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
-import { fetchEstablishments, resolveImageUrl } from '../../api';
+import { fetchEstablishments } from '../../api/establishments';
+import { resolveImageUrl } from '../../api/client';
+
 
 // -------- Categories --------
 const CATEGORIES = [

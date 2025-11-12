@@ -12,12 +12,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, Link, useRouter } from 'expo-router';
-import {
-  resolveImageUrl,
-  fetchActivityById,
-  createBooking as createBookingApi,
-  updateBooking, 
-} from '../../api';
+import { fetchActivityById } from '../../api/activities';
+import { createBooking as createBookingApi, updateBooking } from '../../api/bookings';
+import { resolveImageUrl } from '../../api/client';
 
 /* ============================
    Types

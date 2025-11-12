@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { API_BASE_URL, resolveImageUrl } from '../../api';
+import { API_BASE_URL, resolveImageUrl } from '../../api/client';
 
 const VIOLET = '#7C3AED';
 

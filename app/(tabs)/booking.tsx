@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {View,Text,ScrollView,Image,TouchableOpacity,ActivityIndicator,Alert, RefreshControl,} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {fetchBookings,fetchActivityById,updateBooking,resolveImageUrl,} from '../../api';
+import { fetchBookings, updateBooking } from '../../api/bookings';
+import { fetchActivityById } from '../../api/activities';
+import { resolveImageUrl } from '../../api/client';
 
 type RawStatus = 'confirmed' | 'expired' | 'canceled' | 'cancelled';
 type Booking = {

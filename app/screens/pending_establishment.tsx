@@ -22,6 +22,7 @@ import {
   updateEstablishment,
 } from '../../api';
 
+
 const VIOLET = '#7C3AED';
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 

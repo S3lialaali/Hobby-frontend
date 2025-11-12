@@ -5,7 +5,9 @@ import { Feather, FontAwesome } from '@expo/vector-icons';
 import MapView, { Marker, Callout, LatLng } from 'react-native-maps';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchEstablishments, resolveImageUrl } from '../../api';
+import { fetchEstablishments } from '../../api/establishments';
+import { resolveImageUrl } from '../../api/client';
+
 
 // ---------- Types ----------
 type Mode = 'list' | 'map';

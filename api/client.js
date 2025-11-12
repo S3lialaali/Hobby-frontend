@@ -1,5 +1,12 @@
 //fetch client for the app
-const BASE_URL = "http://172.20.10.2:3000"; //http://<your lan ip>:3000
+export const API_BASE_URL = "http://172.20.10.2:3000"; // ← change if your LAN IP changes
+
+export function resolveImageUrl(u) {
+  if (!u) return null;
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("/")) return `${BASE_URL}${u}`;
+  return `${BASE_URL}/${u}`;
+}
 
 //in memory access token
 let _accessToken = null;
