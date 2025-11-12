@@ -1,26 +1,14 @@
 // app/screens/pending_establisment.tsx
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  Image,
-  Alert,
-  Linking,
-} from 'react-native';
+import {View,Text,ScrollView,ActivityIndicator,TouchableOpacity,Image,Alert,Linking,} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import {
-  resolveImageUrl,
-  fetchEstablishmentById,
-  fetchActivities,
-  fetchInstructors,
-  fetchSchedulesByActivity,
-  updateEstablishment,
-} from '../../api';
+import { fetchActivities } from '@/api/activities';
+import { fetchInstructors } from '@/api/instructors';
+import { fetchSchedulesByActivity } from '@/api/activities';
+import { resolveImageUrl } from '@/api/client';
+import {fetchEstablishmentById,updateEstablishment,} from '../../api/establishments';
 
 
 const VIOLET = '#7C3AED';
@@ -106,7 +94,7 @@ export default function PendingEstablishmentScreen() {
       // so fetch them in parallel for all activities
       const schedMap: Record<number, ActivitySchedule[]> = {};
       await Promise.all(
-        acts.map(async (a) => {
+        acts.map(async (a: Activity) => {
           const scheds = await fetchSchedulesByActivity(a.id);
           schedMap[a.id] = Array.isArray(scheds) ? scheds : [];
         })

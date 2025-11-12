@@ -4,7 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { FontAwesome, Feather, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, Link, useRouter } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
-import { fetchEstablishmentById, clickEstablishment, resolveImageUrl } from '../../api';
+import { resolveImageUrl } from '@/api/client';
+import { fetchEstablishmentById, clickEstablishment} from '@/api/establishments';
 
 // ------------------ Types ------------------
 type Activity = {
