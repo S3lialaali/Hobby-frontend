@@ -4,8 +4,8 @@ export const API_BASE_URL = "http://172.20.10.2:3000"; // ← change if your LAN
 export function resolveImageUrl(u) {
   if (!u) return null;
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
-  if (u.startsWith("/")) return `${BASE_URL}${u}`;
-  return `${BASE_URL}/${u}`;
+  if (u.startsWith("/")) return `${API_BASE_URL}${u}`;
+  return `${API_BASE_URL}/${u}`;
 }
 
 //in memory access token
@@ -31,7 +31,7 @@ async function request(path, opts = {}) {
         timeoutMS = DEFAULT_TIMEOUT_MS,
     } = opts;
 
-    const url = `${BASE_URL}${path}`;
+    const url = `${API_BASE_URL}${path}`;
     //logging info for devs in console
     if (__DEV__) console.log("[API ->]" , method, url);
 
