@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View, Alert, Pressable, ActivityIndicator } from "react-native";
 import { login } from "../../api/auth";
 import { getApiError, setAccessToken } from "../../api/client";
+import { saveRefreshToken } from "@/sessions/storage";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -18,7 +19,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await login({ identifier, password});
-      setAccessToken(response.accessToken);
+      setAccessToken(response.accessToken);              //in memory
+      await saveRefreshToken(response.refreshToken);     //persisted
       console.log("LOGIN RESPONSE ->", response);
       if (response.business && response.business.status !== "approved") {
         Alert.alert("Pending approval", "Your business is still awaiting approval.");

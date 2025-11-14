@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform
 import { Link, router } from "expo-router";
 import { registerBusiness } from "@/api/auth";
 import { getApiError, setAccessToken } from "@/api/client";
+import { saveRefreshToken } from "@/sessions/storage";
 
 //function to parse latitude and longitude from google maps urls
 function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null {
@@ -105,6 +106,7 @@ export default function SignupBusiness() {
       
       console.log("REGISTER BUSINESS RESPONSE ->",response);
       setAccessToken(response.accessToken);
+      await saveRefreshToken(response.refreshToken);     //persist
       Alert.alert("Application submitted", "Your business is pending approval. You will be notified once it's approved.",
         [{ text: "OK", onPress: () => router.replace("/screens/login")}]
       );

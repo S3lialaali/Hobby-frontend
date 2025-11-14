@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform
 import { Link, router } from "expo-router";
 import { registerUser} from "../../../api/auth";
 import { getApiError, setAccessToken } from "../../../api/client";
+import { saveRefreshToken } from "@/sessions/storage";
 
 export default function SignupUser() {
   const [username, setUsername] = useState("");
@@ -25,6 +26,7 @@ export default function SignupUser() {
         phone: phone || null,
       });
       setAccessToken(response.accessToken);
+      await saveRefreshToken(response.refreshToken)   //persist
       console.log("REGISTER USER ->",response);
       if (response?.message === "user_created") {
         router.replace("/(tabs)")
