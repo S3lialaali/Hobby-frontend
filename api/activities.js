@@ -3,15 +3,21 @@ import { get, post, put, del } from "./client";
 
 const base = "/api/activities";
 
-const qs = (p = {}) =>
-    Object.entries(p)
-    .filter(([, v]) => v !== undefined && v !== null & v !=="")
+function appendQuery(path, params) {
+  if (!params) return path;
+  if (typeof params === "string") {
+    if (!params.length) return path;
+    return params.startsWith("?") ? `${path}${params}` : `${path}?${params}`;
+  }
+  const q = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
+  return q ? `${path}?${q}` : path;
+}
 
-export function fetchActivities({ establishmentId, ...params } = {}) {
-    const q = qs({ establishment_id: establishmentId, ...params});
-    return get(`${base}${q ? `?${q}` : ""}`);
+export function fetchActivities(params) {
+    return get(appendQuery(base, params));
 }
 
 export function fetchActivityById(id) {
@@ -23,6 +29,6 @@ export function createActivity(payload) {
 }
 
 export function fetchSchedulesByActivity(activityId, params = {}) {
-    const q = qs({ activity_id: activityId, ...params });
-    return get(`/api/activity_schedules${q ? `?${q}` : ""}`);
+    const q = appendQuery("/api/activity_schedules", { activity_id: activityId, ...params });
+    return get(q);
 }

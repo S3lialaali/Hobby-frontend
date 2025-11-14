@@ -3,15 +3,20 @@ import { get, post, put, del} from "./client";
 
 const base = "/api/instructors";
 
-const qs = (p = {}) =>
-    Object.entries(p)
-    .filter(([, v]) => v !== undefined && v !== null & v !== "")
+function appendQuery(path, params) {
+  if (!params) return path;
+  if (typeof params === "string") {
+    return params ? (params.startsWith("?") ? `${path}${params}` : `${path}?${params}`) : path;
+  }
+  const q = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
+  return q ? `${path}?${q}` : path;
+}
 
-export function fetchInstructors(params = {}) {
-    const q = qs(params);
-    return get(`${base}${q ? `?${q}` : ""}`);
+export function fetchInstructors(params) {
+    return get(appendQuery(base, params));
 }
 
 export function fetchInstructorsByActivity(activityId) {

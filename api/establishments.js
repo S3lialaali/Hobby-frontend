@@ -3,22 +3,32 @@ import { get, post, put, del } from "./client";
 
 const base = "/api/establishments";
 
-//query helper
-const qs = (p = {}) =>
-    Object.entries(p)
-    .filter(([, v]) => v !== undefined && v !==null && v !=="")
+//accept either object or string
+function appendQuery(path, params) {
+  if (!params) return path;
+
+  // If caller passed a string make sure it has ? in the start
+  if (typeof params === "string") {
+    if (!params.length) return path;
+    return params.startsWith("?") ? `${path}${params}` : `${path}?${params}`;
+  }
+  // Otherwise build from object
+  const q = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&")
+    .join("&");
+
+  return q ? `${path}?${q}` : path;
+}
 
 //GET api/establishment
 export function fetchEstablishments(params = {}) {
-    const q = qs(params);
-    return get(`${base}${q ? `${q}` : ""}`);
+    return get(appendQuery(base, params));
 }
 
 export function fetchEstablishmentsByCategory(category, params = {}) {
-    const q = qs(params);
-    return get(`${base}/category/${encodeURIComponent(category)}${q ? `${q}` : ""}`);
+    const path = `{base}/category/${encodeURIComponent(category)}`;
+    return get(appendQuery(path, params));
 }
 
 export function fetchEstablishmentById(id) {
