@@ -1,5 +1,5 @@
 //rets wrapper for users routes
-import { get, post, put, del } from "./client";
+import { del, get, post, put } from "./client";
 
 const base = "/api/users";
 
@@ -29,11 +29,19 @@ export function deleteUser(id) {
     return del(`${base}/${id}`);
 }
 
-//reporting
+
 export function reportProblem(payload = {}) {
-    return post(`/users/report`, payload);
+    return post(`${base}/report`, payload);
 }
 
-export function fetchUserReports() {
-    return get(`/users/reports`);
+export function fetchReports() {
+    return get(`${base}/reports`);
+}
+
+export function fetchUserReports(id) {
+    return get(`${base}/${id}/reports`);
+}
+
+export function fetchUserReviews(id) {
+  return get(`${base}/${id}/reviews`);
 }

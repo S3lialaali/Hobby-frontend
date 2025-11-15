@@ -9,14 +9,14 @@ export async function saveRefreshToken(token) {
     catch {}
 }
 
-export async function loadRefreshToken(token) {
+export async function loadRefreshToken() {
     try {
         return (await SecureStore.getItemAsync(REFRESH_KEY)) || null;
     }
     catch {return null;}
 }
 
-export async function clearRefreshToken(token) {
+export async function clearRefreshToken() {
     try {
         await SecureStore.deleteItemAsync(REFRESH_KEY);
     }

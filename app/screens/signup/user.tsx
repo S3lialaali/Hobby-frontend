@@ -1,16 +1,17 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Pressable} from "react-native";
-import { Link, router } from "expo-router";
-import { registerUser} from "../../../api/auth";
-import { getApiError, setAccessToken } from "../../../api/client";
-import { saveRefreshToken } from "@/sessions/storage";
+import { View, Text, TextInput, ActivityIndicator, Alert, Pressable } from "react-native";
+import { router } from "expo-router";
+import { getApiError } from "../../../api/client";
+import { useAuth } from "../../../sessions/AuthContext";
 
 export default function SignupUser() {
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail]     = useState("");
+  const [phone, setPhone]     = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]   = useState(false);
+
+  const { registerUser } = useAuth();
 
   async function onSubmit() {
     if (!username || !email || !password) {
@@ -19,27 +20,25 @@ export default function SignupUser() {
     }
     setLoading(true);
     try {
-      const response = await registerUser({ 
-        username, 
+      // 🔑 Let the context perform the registration and handle tokens/user state
+      const res = await registerUser({
+        username,
         email,
         password,
         phone: phone || null,
       });
-      setAccessToken(response.accessToken);
-      await saveRefreshToken(response.refreshToken)   //persist
-      console.log("REGISTER USER ->",response);
-      if (response?.message === "user_created") {
-        router.replace("/(tabs)")
-      } else {
-        Alert.alert("Signup", "Account created.");
-        router.replace("/(tabs)");
+
+      // If your backend returns a message you still want to surface:
+      if (res?.message === "user_created") {
+        // optional: Alert.alert("Signup", "Account created.");
       }
+      router.replace("/(tabs)");
     } catch (err) {
       const msg = getApiError(err);
       if (msg === "email_or_username_exists" || msg === "conflict") {
         Alert.alert("Already registered", "Email or username already exists.");
       } else {
-        Alert.alert("Signup failed", msg)
+        Alert.alert("Signup failed", msg);
       }
     } finally {
       setLoading(false);

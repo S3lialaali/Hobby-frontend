@@ -50,3 +50,14 @@ export function createEstablishment(payload) {
 export function updateEstablishment(id, payload) {
     return put(`${base}/${id}`, payload);
 }
+
+export function fetchEstablishmentReviews(id, params = {}) {
+  const path = `${base}/${id}/reviews`;
+  return get(appendQuery(path, params));
+}
+
+// POST /api/establishments/:id/reviews
+// payload: { user_id: number, rating: 1..5, comment?: string }
+export function createEstablishmentReview(id, payload) {
+  return post(`${base}/${id}/reviews`, payload);
+}

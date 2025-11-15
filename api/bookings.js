@@ -1,5 +1,5 @@
 //rest wrapper for booking routes
-import { get, post, put, del } from "./client";
+import { get, post, patch, del } from "./client";
 
 const base = "/api/bookings";
 
@@ -27,6 +27,6 @@ export function createBooking(payload) {
     return post(base, payload);
 }
 
-export function updateBooking(id, patch) {
-    return put(`${base}/${id}`, patch);
+export function updateBooking(id, body) {
+   return patch(`${base}/${id}`, body);
 }

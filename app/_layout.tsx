@@ -1,8 +1,9 @@
 // app/_layout.tsx
 import { Stack } from "expo-router";
-import "./globals.css";
-import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
+import { AuthProvider } from "../sessions/AuthContext";
+import "./globals.css";
 
 const METRICS =
   initialWindowMetrics
@@ -15,8 +16,9 @@ const METRICS =
 export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={METRICS}>
-      <StatusBar style="dark" />
-      <Stack initialRouteName="screens/login">
+      <AuthProvider>
+        <StatusBar style="dark" />
+        <Stack initialRouteName="screens/login">
         <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         <Stack.Screen
@@ -29,7 +31,8 @@ export default function RootLayout() {
         <Stack.Screen name="screens/signup/role" options={{ headerShown: false, title: "Choose role"}} />
         <Stack.Screen name="screens/signup/user" options={{ headerShown: false, title: "Sign up (User)"}} />
         <Stack.Screen name="screens/signup/business" options={{ headerShown: false, title: "Sign up (Business)"}} />
-      </Stack>
+        </Stack>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,10 +1,11 @@
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import {View,Text,FlatList,ScrollView,TouchableOpacity,Image,ActivityIndicator,RefreshControl,} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
-import { fetchEstablishments } from '../../api/establishments';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View, } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { resolveImageUrl } from '../../api/client';
+import { fetchEstablishments } from '../../api/establishments';
+import { useAuth } from '../../sessions/AuthContext';
 
 
 // -------- Categories --------
@@ -204,7 +205,8 @@ function HorizontalSection({
 
 // -------- Screen --------
 export default function HomeScreen() {
-  const userName = 'Ali';
+  const { user } = useAuth();
+  const userName = user?.username ?? user?.name ?? 'there';
   const router = useRouter();
 
   // Each section pulls from backend

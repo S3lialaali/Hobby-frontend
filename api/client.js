@@ -1,7 +1,7 @@
 //fetch client for the app
 import { loadRefreshToken, saveRefreshToken, clearRefreshToken} from "../sessions/storage";
 
-export const API_BASE_URL = "http://192.168.100.53:3000"; // ← change if your LAN IP changes
+export const API_BASE_URL = "http://192.168.100.22:3000"; // ← change if your LAN IP changes
 
 //toggles for DEV logs
 const LOG = {
@@ -166,6 +166,7 @@ async function request(path, opts = {}) {
 export function get(path, headers) { return request(path, { method: "GET", headers }); }
 export function post(path, body, headers) { return request(path, { method: "POST", body, headers }); }
 export function put(path, body, headers) { return request(path, { method: "PUT", body, headers }); }
+export function patch(path, body, headers) { return request(path, { method: "PATCH", body, headers }); }
 export function del(path, headers) { return request(path, { method: "DELETE", headers }); }
 
 //error message for UI

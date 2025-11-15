@@ -1,11 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, Linking } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  Linking,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, Feather, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, Link, useRouter } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import { resolveImageUrl } from '@/api/client';
-import { fetchEstablishmentById, clickEstablishment} from '@/api/establishments';
+import {
+  fetchEstablishmentById,
+  clickEstablishment,
+  fetchEstablishmentReviews,
+  createEstablishmentReview,
+} from '@/api/establishments';
+import { useAuth } from '@/sessions/AuthContext';
 
 // ------------------ Types ------------------
 type Activity = {
@@ -20,7 +37,6 @@ type Instructor = {
   name: string;
   avatarUri?: string;
 };
-
 
 type Establishment = {
   id: string;
@@ -40,6 +56,16 @@ type Establishment = {
   };
   lat?: number | null;
   lng?: number | null;
+};
+
+type Review = {
+  id: number;
+  user_id: number;
+  username?: string;   // ← added
+  user_name?: string;  // keep for compatibility
+  rating: number; // 1..5
+  comment?: string | null;
+  created_at?: string;
 };
 
 // ------------------ UI helpers ------------------
@@ -68,6 +94,19 @@ function StarRow({ rating, count }: { rating: number; count: number }) {
         ))}
       </View>
       <Text className="ml-2 text-[13px] text-gray-500">({count || 0})</Text>
+    </View>
+  );
+}
+
+// Tap-to-rate stars for the add-review form
+function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <View className="flex-row">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <TouchableOpacity key={n} onPress={() => onChange(n)} className="mr-2" activeOpacity={0.7}>
+          <FontAwesome name={n <= value ? 'star' : 'star-o'} size={20} color="#111" />
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -138,9 +177,11 @@ function adaptBackendToUI(row: any): Establishment {
   const hero = resolveImageUrl(row?.image_url || row?.logo_url || '');
 
   const ratingRaw =
-    typeof row?.ratings === 'number' ? row.ratings :
-    typeof row?.rating === 'number' ? row.rating :
-    Number(row?.ratings) || Number(row?.rating) || 0;
+    typeof row?.ratings === 'number'
+      ? row.ratings
+      : typeof row?.rating === 'number'
+      ? row.rating
+      : Number(row?.ratings) || Number(row?.rating) || 0;
   const rating = Number.isFinite(ratingRaw) ? ratingRaw : 0;
 
   const ratingCountRaw =
@@ -157,19 +198,19 @@ function adaptBackendToUI(row: any): Establishment {
     : [];
 
   const team: Instructor[] = Array.isArray(row?.team)
-  ? row.team.map((m: any) => ({
-      id: String(m.id),
-      name: m.name || 'Instructor',
-      avatarUri: resolveImageUrl(
-        m.profile_picture ??     
-        m.profile_placeholder ?? 
-        m.avatar ??
-        m.image_url ??
-        m.url ??
-        ''                       
-      ),
-    }))
-  : [];
+    ? row.team.map((m: any) => ({
+        id: String(m.id),
+        name: m.name || 'Instructor',
+        avatarUri: resolveImageUrl(
+          m.profile_picture ??
+            m.profile_placeholder ??
+            m.avatar ??
+            m.image_url ??
+            m.url ??
+            ''
+        ),
+      }))
+    : [];
 
   return {
     id: String(row?.id ?? ''),
@@ -196,16 +237,31 @@ function adaptBackendToUI(row: any): Establishment {
 const buildGoogleMapsUrl = (lat?: number | null, lng?: number | null, name?: string) => {
   if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
     const label = name ? encodeURIComponent(name) : '';
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}${label ? `&query_place_id=${label}` : ''}`;
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}${
+      label ? `&query_place_id=${label}` : ''
+    }`;
   }
   return null;
 };
+
+// Format review creation date
+function formatReviewDate(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 // ------------------ Screen ------------------
 export default function EstablishmentScreen() {
   const { id, name } = useLocalSearchParams<{ id?: string; name?: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
 
   const [est, setEst] = useState<Establishment>({
     id: String(id ?? ''),
@@ -221,6 +277,19 @@ export default function EstablishmentScreen() {
     lat: null,
     lng: null,
   });
+
+  // Reviews state
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // Add-review state
+  const [showAddReview, setShowAddReview] = useState(false);
+  const [myRating, setMyRating] = useState<number>(0);
+  const [myComment, setMyComment] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // "View all" toggle
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   useEffect(() => {
     const estId = Number(id);
@@ -245,6 +314,28 @@ export default function EstablishmentScreen() {
     };
   }, [id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const estId = Number(id);
+    if (!estId) return;
+
+    (async () => {
+      setLoadingReviews(true);
+      try {
+        const list = await fetchEstablishmentReviews(estId);
+        if (!cancelled && Array.isArray(list)) {
+          setReviews(list);
+        }
+      } finally {
+        if (!cancelled) setLoadingReviews(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   const coords = useMemo(() => {
     if (typeof est.lat === 'number' && typeof est.lng === 'number' && isFinite(est.lat) && isFinite(est.lng)) {
       return { latitude: est.lat as number, longitude: est.lng as number };
@@ -252,9 +343,14 @@ export default function EstablishmentScreen() {
     return null;
   }, [est.lat, est.lng]);
 
+  const visibleReviews = useMemo(() => {
+    if (!reviews.length) return [];
+    if (showAllReviews) return reviews;
+    return reviews.slice(0, 5); // limit to 5
+  }, [reviews, showAllReviews]);
+
   // NAVIGATE to activity screen when user taps Book
   const onBook = (a: Activity) => {
-    // pass id and name/title as params (activity screen reads id)
     router.push({
       pathname: '/screens/activity',
       params: { id: a.id, title: a.name },
@@ -265,7 +361,9 @@ export default function EstablishmentScreen() {
   const openMail = () => est.contact.email && Linking.openURL(`mailto:${est.contact.email}`);
   const openWeb = () =>
     est.contact.website &&
-    Linking.openURL(est.contact.website.startsWith('http') ? est.contact.website : `https://${est.contact.website}`);
+    Linking.openURL(
+      est.contact.website.startsWith('http') ? est.contact.website : `https://${est.contact.website}`
+    );
 
   const openDirections = () => {
     const url = buildGoogleMapsUrl(est.lat, est.lng, est.name);
@@ -276,132 +374,321 @@ export default function EstablishmentScreen() {
     ? { uri: est.heroImageUri }
     : require('../../assets/images/establishment_images/placeholder1.jpeg');
 
+  const averageFromReviews = useMemo(() => {
+    if (!reviews.length) return null;
+    const sum = reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0);
+    return sum / reviews.length || null;
+  }, [reviews]);
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      router.push('/screens/login');
+      return;
+    }
+    if (myRating < 1 || myRating > 5) return;
+
+    setSubmitting(true);
+    try {
+      await createEstablishmentReview(Number(id), {
+        user_id: user.id,
+        rating: myRating,
+        comment: myComment?.trim() || undefined,
+      });
+      // Reset form
+      setMyRating(0);
+      setMyComment('');
+      setShowAddReview(false);
+      // Refresh reviews
+      setLoadingReviews(true);
+      const list = await fetchEstablishmentReviews(Number(id));
+      setReviews(Array.isArray(list) ? list : []);
+    } finally {
+      setSubmitting(false);
+      setLoadingReviews(false);
+    }
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} // adjust if needed
+      >
+        <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
+            {/* Hero image */}
+            <View>
+              <Image source={heroSource} className="w-full h-72" resizeMode="cover" />
 
-      <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
-          {/* Hero image */}
-          <View>
-            <Image source={heroSource} className="w-full h-72" resizeMode="cover" />
-
-            {/* Back button */}
-            <Link href="/(tabs)" replace asChild>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-                style={{
-                  position: 'absolute',
-                  left: 16,
-                  top: insets.top + 8,
-                  zIndex: 10,
-                  elevation: 10,
-                  shadowColor: '#000',
-                  shadowOpacity: 0.15,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
-                }}
-                className="w-9 h-9 rounded-full bg-white items-center justify-center border border-gray-200"
-                accessibilityRole="button"
-                accessibilityLabel="Go to Home"
-              >
-                <Feather name="arrow-left" size={18} color="#000" />
-              </TouchableOpacity>
-            </Link>
-          </View>
-
-          {/* Name + rating + address */}
-          <View className="px-5 pt-5">
-            <Text className="text-[24px] font-extrabold text-gray-900">{est.name}</Text>
-            <View className="mt-3">
-              <StarRow rating={est.rating} count={est.ratingCount} />
-            </View>
-            <View className="flex-row items-center mt-3">
-              <Feather name="map-pin" size={14} color="#6b7280" />
-              <Text className="ml-2 text-[13px] text-gray-600">{est.address}</Text>
-            </View>
-          </View>
-
-          {/* Activities */}
-          <View className="px-5 mt-8">
-            <SectionTitle>Activities</SectionTitle>
-            <View className="h-px bg-gray-200" />
-            {est.activities.map((a) => (
-              <ActivityRow key={a.id} item={a} onBook={onBook} />
-            ))}
-          </View>
-
-          {/* The team */}
-          <View className="px-5 mt-10">
-            <SectionTitle>The team</SectionTitle>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
-              {est.team.map((p) => (
-                <InstructorCard key={p.id} person={p} />
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* About */}
-          <View className="px-5 mt-10">
-            <SectionTitle>About</SectionTitle>
-            <Text className="text-[14px] leading-5 text-gray-800">
-              {est.about}
-            </Text>
-          </View>
-
-          {/* Native map  */}
-          <View className="px-5 mt-10">
-            <View className="w-full h-56 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
-              {coords && (
-                <MapView
-                  style={{ width: '100%', height: '100%' }}
-                  region={{
-                    ...coords,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
+              {/* Back button */}
+              <Link href="/(tabs)" replace asChild>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                  style={{
+                    position: 'absolute',
+                    left: 16,
+                    top: useSafeAreaInsets().top + 8,
+                    zIndex: 10,
+                    elevation: 10,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.15,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 2 },
                   }}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
-                  showsCompass={false}
-                  toolbarEnabled={false}
+                  className="w-9 h-9 rounded-full bg-white items-center justify-center border border-gray-200"
+                  accessibilityRole="button"
+                  accessibilityLabel="Go to Home"
                 >
-                  <Marker coordinate={coords} title={est.name} />
-                </MapView>
+                  <Feather name="arrow-left" size={18} color="#000" />
+                </TouchableOpacity>
+              </Link>
+            </View>
+
+            {/* Name + rating + address */}
+            <View className="px-5 pt-5">
+              <Text className="text-[24px] font-extrabold text-gray-900">{est.name}</Text>
+              <View className="mt-3">
+                {/* Prefer backend rating; fall back to client-avg if reviews loaded */}
+                <StarRow
+                  rating={
+                    Number.isFinite(est.rating) && est.rating > 0 ? est.rating : averageFromReviews ?? 0
+                  }
+                  count={est.ratingCount || reviews.length}
+                />
+              </View>
+              <View className="flex-row items-center mt-3">
+                <Feather name="map-pin" size={14} color="#6b7280" />
+                <Text className="ml-2 text-[13px] text-gray-600">{est.address}</Text>
+              </View>
+            </View>
+
+            {/* Activities */}
+            <View className="px-5 mt-8">
+              <SectionTitle>Activities</SectionTitle>
+              <View className="h-px bg-gray-200" />
+              {est.activities.map((a) => (
+                <ActivityRow key={a.id} item={a} onBook={onBook} />
+              ))}
+            </View>
+
+            {/* The team */}
+            <View className="px-5 mt-10">
+              <SectionTitle>The team</SectionTitle>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
+                {est.team.map((p) => (
+                  <InstructorCard key={p.id} person={p} />
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* About */}
+            <View className="px-5 mt-10">
+              <SectionTitle>About</SectionTitle>
+              <Text className="text-[14px] leading-5 text-gray-800">{est.about}</Text>
+            </View>
+
+            {/* Native map  */}
+            <View className="px-5 mt-10">
+              <View className="w-full h-56 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
+                {coords && (
+                  <MapView
+                    style={{ width: '100%', height: '100%' }}
+                    region={{
+                      ...coords,
+                      latitudeDelta: 0.005,
+                      longitudeDelta: 0.005,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    showsCompass={false}
+                    toolbarEnabled={false}
+                  >
+                    <Marker coordinate={coords} title={est.name} />
+                  </MapView>
+                )}
+              </View>
+
+              {/* Get Directions link under the map */}
+              {coords && (
+                <TouchableOpacity onPress={openDirections} activeOpacity={0.7} className="mt-3">
+                  <Text className="pl-1 text-[16px] font-semibold text-[#7C3AED]">Get Directions</Text>
+                </TouchableOpacity>
               )}
             </View>
 
-            {/* Get Directions link under the map */}
-            {coords && (
-              <TouchableOpacity
-                onPress={openDirections}
-                activeOpacity={0.7}
-                className="mt-3"
-              >
-                <Text className="pl-1 text-[16px] font-semibold text-[#7C3AED]" >
-                  Get Directions
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            {/* Contact */}
+            <View className="px-5 mt-10">
+              <SectionTitle>Contact</SectionTitle>
+              {est.contact.phone && (
+                <ContactRow
+                  icon={<Feather name="phone" size={18} color="#111" />}
+                  text={est.contact.phone}
+                  onPress={openTel}
+                />
+              )}
+              {est.contact.email && (
+                <ContactRow
+                  icon={<Feather name="mail" size={18} color="#111" />}
+                  text={est.contact.email}
+                  onPress={openMail}
+                />
+              )}
+              {est.contact.address && (
+                <ContactRow
+                  icon={<MaterialIcons name="location-on" size={18} color="#111" />}
+                  text={est.contact.address}
+                />
+              )}
+            </View>
 
-          {/* Contact */}
-          <View className="px-5 mt-10 mb-8">
-            <SectionTitle>Contact</SectionTitle>
-            {est.contact.phone && (
-              <ContactRow icon={<Feather name="phone" size={18} color="#111" />} text={est.contact.phone} onPress={openTel} />
-            )}
-            {est.contact.email && (
-              <ContactRow icon={<Feather name="mail" size={18} color="#111" />} text={est.contact.email} onPress={openMail} />
-            )}
-            {est.contact.address && (
-              <ContactRow icon={<MaterialIcons name="location-on" size={18} color="#111" />} text={est.contact.address} />
-            )}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+            {/* Reviews */}
+            <View className="px-5 mt-10 mb-8">
+              <SectionTitle>Reviews</SectionTitle>
+
+              {/* Reviews list card */}
+              <View className="rounded-2xl border border-gray-200 bg-white">
+                {loadingReviews ? (
+                  <View className="py-6 items-center">
+                    <ActivityIndicator />
+                    <Text className="text-[12px] text-gray-500 mt-2">Loading reviews…</Text>
+                  </View>
+                ) : reviews.length === 0 ? (
+                  <View className="py-6 items-center">
+                    <Text className="text-[13px] text-gray-500">No reviews yet</Text>
+                  </View>
+                ) : (
+                  <>
+                    {visibleReviews.map((rv, idx) => {
+                      const displayName =
+                        rv.username || rv.user_name || `User #${rv.user_id}`;
+                      const dateLabel = formatReviewDate(rv.created_at);
+
+                      return (
+                        <View key={rv.id ?? idx} className="px-4 py-3">
+                          <View className="flex-row items-start justify-between mb-1">
+                            <View className="flex-1 mr-2">
+                              <Text
+                                className="text-[14px] font-semibold text-gray-900"
+                                numberOfLines={1}
+                              >
+                                {displayName}
+                              </Text>
+                              {dateLabel ? (
+                                <Text className="text-[11px] text-gray-500">
+                                  {dateLabel}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <View className="flex-row mt-1">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <FontAwesome
+                                  key={n}
+                                  name={n <= (rv.rating || 0) ? 'star' : 'star-o'}
+                                  size={12}
+                                  color="#111"
+                                />
+                              ))}
+                            </View>
+                          </View>
+                          {rv.comment ? (
+                            <Text className="text-[13px] text-gray-700">{rv.comment}</Text>
+                          ) : null}
+                          {idx < visibleReviews.length - 1 && (
+                            <View className="h-px bg-gray-200 mt-3" />
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {/* View all / Show less link */}
+                    {reviews.length > 5 && (
+                      <TouchableOpacity
+                        onPress={() => setShowAllReviews((v) => !v)}
+                        activeOpacity={0.7}
+                        className="py-3 items-center border-t border-gray-200"
+                      >
+                        <Text className="text-[13px] font-semibold text-[#7C3AED]">
+                          {showAllReviews
+                            ? 'Show less'
+                            : `View all reviews (${reviews.length})`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Add review button / form at the bottom */}
+              {!showAddReview ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  className="mt-4 self-start px-4 py-2 rounded-full border border-gray-300 bg-white"
+                  onPress={() => {
+                    if (!user) {
+                      router.push('/screens/login');
+                      return;
+                    }
+                    setShowAddReview(true);
+                  }}
+                >
+                  <Text className="text-[13px] font-medium text-gray-900">Add a review</Text>
+                </TouchableOpacity>
+              ) : (
+                <View className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+                  <Text className="text-[14px] font-semibold text-gray-900 mb-2">Your rating</Text>
+                  <StarPicker value={myRating} onChange={setMyRating} />
+                  <Text className="text-[14px] font-semibold text-gray-900 mt-4 mb-2">
+                    Comment (optional)
+                  </Text>
+                  <TextInput
+                    value={myComment}
+                    onChangeText={setMyComment}
+                    placeholder="Share your experience…"
+                    placeholderTextColor="rgba(60,60,67,0.6)"
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    className="border rounded-xl px-4 py-3"
+                  />
+                  <View className="flex-row mt-3">
+                    <TouchableOpacity
+                      disabled={submitting || myRating < 1}
+                      onPress={handleSubmitReview}
+                      className="px-4 py-2 rounded-full mr-3"
+                      style={{
+                        backgroundColor: submitting || myRating < 1 ? '#E5E7EB' : '#111',
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator />
+                      ) : (
+                        <Text className="text-white font-semibold">Submit</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowAddReview(false);
+                        setMyRating(0);
+                        setMyComment('');
+                      }}
+                      className="px-4 py-2 rounded-full border border-gray-300 bg-white"
+                      activeOpacity={0.85}
+                    >
+                      <Text className="text-[13px] font-medium text-gray-900">Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </>
   );
 }

@@ -1,32 +1,38 @@
 import { Link, router } from "expo-router";
 import React, { useState } from "react";
-import { KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View, Alert, Pressable, ActivityIndicator } from "react-native";
-import { login } from "../../api/auth";
-import { getApiError, setAccessToken } from "../../api/client";
-import { saveRefreshToken } from "@/sessions/storage";
+import {KeyboardAvoidingView,Platform,Text,TextInput,TouchableOpacity,View,Alert,Pressable,ActivityIndicator,} from "react-native";
+import { getApiError } from "../../api/client";
+import { useAuth } from "../../sessions/AuthContext";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [identifier, setIdentifier] = useState(""); //email OR phone
+  const [identifier, setIdentifier] = useState(""); // email OR phone
   const [loading, setLoading] = useState(false);
+
+  const { signIn, user } = useAuth();
 
   async function onSubmit() {
     if (!identifier || !password) {
-      Alert.alert("Missing fields", "Please neter yout email/phone number and password.");
+      Alert.alert("Missing fields", "Please enter your email/phone number and password.");
       return;
     }
     setLoading(true);
     try {
-      const response = await login({ identifier, password});
-      setAccessToken(response.accessToken);              //in memory
-      await saveRefreshToken(response.refreshToken);     //persisted
-      console.log("LOGIN RESPONSE ->", response);
-      if (response.business && response.business.status !== "approved") {
-        Alert.alert("Pending approval", "Your business is still awaiting approval.");
-        //We can place optional pending screen here router.replace("/screens/pending");
+      // 🔑 Use the context so it sets user + tokens and updates the UI state
+      const data = await signIn({ identifier, password });
+
+      // Prefer business status from the response; fall back to context if needed
+      const businessStatus =
+        data?.business?.status ?? user?.business?.status ?? null;
+
+      if (businessStatus && businessStatus !== "approved") {
+        Alert.alert(
+          "Pending approval",
+          "Your business is still awaiting approval."
+        );
+        // Optional: router.replace("/screens/pending");
       } else {
-        router.replace("/(tabs)"); //redirect to home page
+        router.replace("/(tabs)");
       }
     } catch (err) {
       Alert.alert("Login failed", getApiError(err));
@@ -55,14 +61,25 @@ export default function LoginScreen() {
         className="border rounded-xl px-4 py-3 mb-4"
       />
 
-      <Pressable onPress={onSubmit} disabled={loading} className="bg-black rounded-xl px-4 py-3 items-center">
-        {loading ? <ActivityIndicator /> : <Text className="text-white font-semibold">Login</Text>}
-      </Pressable>
-      {/* Sign up link -> role.tsx */}
-      <Pressable onPress={() => router.push("/screens/signup/role")} className="mt-4 items-center">
-        <Text className="text-blue-600">Don’t have an account? Sign up</Text>
+      <Pressable
+        onPress={onSubmit}
+        disabled={loading}
+        className="bg-black rounded-xl px-4 py-3 items-center"
+      >
+        {loading ? (
+          <ActivityIndicator />
+        ) : (
+          <Text className="text-white font-semibold">Login</Text>
+        )}
       </Pressable>
 
+      {/* Sign up link -> role.tsx */}
+      <Pressable
+        onPress={() => router.push("/screens/signup/role")}
+        className="mt-4 items-center"
+      >
+        <Text className="text-blue-600">Don’t have an account? Sign up</Text>
+      </Pressable>
     </View>
   );
 }

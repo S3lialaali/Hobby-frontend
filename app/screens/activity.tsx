@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  useWindowDimensions,
+  View, Text, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -15,51 +8,34 @@ import { Stack, useLocalSearchParams, Link, useRouter } from 'expo-router';
 import { fetchActivityById } from '../../api/activities';
 import { createBooking as createBookingApi, updateBooking } from '../../api/bookings';
 import { resolveImageUrl } from '../../api/client';
+import { useAuth } from '../../sessions/AuthContext'; // ★ use logged-in user here
 
 /* ============================
    Types
 ============================ */
 type ActivityImage = { id?: number; url: string; created_at?: string };
 type Instructor = {
-  id: number;
-  name: string;
-  bio?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  profile_picture?: string | null;
-  profile_placeholder?: string | null;
-  avatarUri?: string | null;
-  image_url?: string | null;
+  id: number; name: string; bio?: string | null; email?: string | null; phone?: string | null;
+  profile_picture?: string | null; profile_placeholder?: string | null; avatarUri?: string | null; image_url?: string | null;
 };
 type Schedule = {
-  id: number;
-  activity_id?: number;
-  day_of_week: number; // 0=Sun..6=Sat
-  start_time: string;  // "HH:MM:SS"
-  end_time?: string | null;
-  capacity?: number | null;
-  is_active: 1 | 0 | boolean;
+  id: number; activity_id?: number; day_of_week: number; start_time: string; end_time?: string | null;
+  capacity?: number | null; is_active: 1 | 0 | boolean;
 };
 type ActivityDetail = {
-  id: number;
-  establishment_id: number;
-  title: string;
-  description?: string | null;
-  price?: number | null;
-  images?: ActivityImage[];
-  instructors?: Instructor[];
-  schedules?: Schedule[];
+  id: number; establishment_id: number; title: string; description?: string | null;
+  price?: number | null; images?: ActivityImage[]; instructors?: Instructor[]; schedules?: Schedule[];
 };
 
 /* ============================
-   Accent color (exact hex)
+   Accent color
 ============================ */
 const ACTIVE_HEX = '#7C3AED';
 const activeBgBr = { backgroundColor: ACTIVE_HEX, borderColor: ACTIVE_HEX };
 const activeText = { color: ACTIVE_HEX };
 
 /* ============================
-   Mini UI helpers
+   UI helpers
 ============================ */
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <Text className="text-[20px] font-bold text-gray-900 mb-4">{children}</Text>;
@@ -83,39 +59,25 @@ function InstructorCard({ person }: { person: Instructor }) {
 /* ============================
    Helpers
 ============================ */
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as const;
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'] as const;
-const formatBHD = (n?: number | null) =>
-  typeof n === 'number' && isFinite(n) ? `BHD ${n.toFixed(2)}` : '';
-const to12h = (hhmmss: string) => {
-  const [H, M] = hhmmss.split(':').map((v) => parseInt(v, 10));
-  const h12 = ((H % 12) || 12).toString();
-  const ampm = H < 12 ? 'AM' : 'PM';
-  return `${h12}:${String(M).padStart(2, '0')} ${ampm}`;
-};
+const formatBHD = (n?: number | null) => typeof n === 'number' && isFinite(n) ? `BHD ${n.toFixed(2)}` : '';
+const to12h = (hhmmss: string) => { const [H,M] = hhmmss.split(':').map(v=>parseInt(v,10)); const h12=((H%12)||12).toString(); const ampm=H<12?'AM':'PM'; return `${h12}:${String(M).padStart(2,'0')} ${ampm}`; };
 const normImageUrl = (img: any) => resolveImageUrl(img?.url ?? img?.image_url ?? img?.path ?? '');
-const normInstructorPic = (m: any) =>
-  resolveImageUrl(m?.profile_picture ?? m?.profile_placeholder ?? m?.avatar ?? m?.image_url ?? '');
+const normInstructorPic = (m: any) => resolveImageUrl(m?.profile_picture ?? m?.profile_placeholder ?? m?.avatar ?? m?.image_url ?? '');
 
-/* Friendly error → message mapping (client-side) */
+/* Client error → message */
 function bookingErrorToMessage(err: any): string {
   const code = typeof err === 'string' ? err : err?.error || '';
   switch (code) {
-    case 'duplicate_booking':
-      return "You can’t book the same time twice.";
-    case 'schedule_full_for_that_time':
-      return 'Sorry, this time is fully booked.';
-    case 'schedule_inactive':
-      return 'This time is no longer available.';
+    case 'duplicate_booking': return "You can’t book the same time twice.";
+    case 'schedule_full_for_that_time': return 'Sorry, this time is fully booked.';
+    case 'schedule_inactive': return 'This time is no longer available.';
     case 'time_mismatch_dayofweek':
-    case 'time_mismatch_start_time':
-      return 'Selected time does not match the schedule.';
-    case 'activity_mismatch':
-      return 'Selected time does not belong to this activity.';
-    case 'invalid_schedule_id':
-      return 'Invalid schedule.';
-    default:
-      return 'Something went wrong. Please try again.';
+    case 'time_mismatch_start_time': return 'Selected time does not match the schedule.';
+    case 'activity_mismatch': return 'Selected time does not belong to this activity.';
+    case 'invalid_schedule_id': return 'Invalid schedule.';
+    default: return 'Something went wrong. Please try again.';
   }
 }
 
@@ -132,9 +94,7 @@ function ImageCarousel({ images }: { images: ActivityImage[] }) {
   return (
     <View>
       <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
+        horizontal pagingEnabled showsHorizontalScrollIndicator={false}
         onScroll={(e) => {
           const w = e.nativeEvent.layoutMeasurement.width;
           if (w > 0) {
@@ -164,14 +124,10 @@ function ImageCarousel({ images }: { images: ActivityImage[] }) {
    Screen
 ============================ */
 export default function ActivityScreen() {
-  // read optional rescheduleFrom param
-  const { id, title, rescheduleFrom } = useLocalSearchParams<{
-    id?: string;
-    title?: string;
-    rescheduleFrom?: string; // booking id we’ll cancel AFTER success
-  }>();
+  const { id, title, rescheduleFrom } = useLocalSearchParams<{ id?: string; title?: string; rescheduleFrom?: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user, initializing } = useAuth(); // ★ get logged-in user
 
   const activityId = Number(id);
 
@@ -181,7 +137,7 @@ export default function ActivityScreen() {
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
 
   // Booking state
-  const userId = 2; // hard-coded "logged-in" user
+  // ★ removed hard-coded userId; we’ll use user?.id below
   const [selectedDateKey, setSelectedDateKey] = useState<string>(''); // "YYYY-MM-DD"
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [selectedTimeKey, setSelectedTimeKey] = useState<string>(''); // "YYYY-MM-DDTHH:MM"
@@ -229,12 +185,8 @@ export default function ActivityScreen() {
   }, [activityId]);
 
   const allSchedules = schedules || [];
-  const activeSchedules = useMemo(
-    () => allSchedules.filter((s) => Boolean(s.is_active)),
-    [allSchedules]
-  );
+  const activeSchedules = useMemo(() => allSchedules.filter((s) => Boolean(s.is_active)), [allSchedules]);
 
-  // Group weekly by day (one card per day, multiple times)
   const groupedWeekly = useMemo(() => {
     const byDay: Record<number, Schedule[]> = {0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
     allSchedules.forEach(s => byDay[s.day_of_week].push(s));
@@ -244,7 +196,6 @@ export default function ActivityScreen() {
     return byDay;
   }, [allSchedules]);
 
-  // Build next 21 days
   const dayChips = useMemo(() => {
     const out: { key: string; dow: number; d: number; dowLabel: string; month: string }[] = [];
     const base = new Date();
@@ -252,28 +203,18 @@ export default function ActivityScreen() {
     for (let i=0;i<21;i++){
       const dt = new Date(base);
       dt.setDate(base.getDate()+i);
-      const yyyy = dt.getFullYear();
-      const mm = String(dt.getMonth()+1).padStart(2,'0');
-      const dd = String(dt.getDate()).padStart(2,'0');
-      out.push({
-        key:`${yyyy}-${mm}-${dd}`,
-        dow: dt.getDay(),
-        d: dt.getDate(),
-        dowLabel: WEEKDAYS[dt.getDay()],
-        month: MONTHS[dt.getMonth()],
-      });
+      const yyyy = dt.getFullYear(); const mm = String(dt.getMonth()+1).padStart(2,'0'); const dd = String(dt.getDate()).padStart(2,'0');
+      out.push({ key:`${yyyy}-${mm}-${dd}`, dow: dt.getDay(), d: dt.getDate(), dowLabel: WEEKDAYS[dt.getDay()], month: MONTHS[dt.getMonth()] });
     }
     return out;
   }, []);
 
-  // Default to first day with a slot
   useEffect(() => {
     if (selectedDateKey || !activeSchedules.length) return;
     const first = dayChips.find(c => activeSchedules.some(s => s.day_of_week === c.dow));
     if (first) setSelectedDateKey(first.key);
   }, [dayChips, activeSchedules, selectedDateKey]);
 
-  // Time slots for selected day
   const timeSlots = useMemo(() => {
     if (!selectedDateKey || !activeSchedules.length) return [] as { key: string; label: string; scheduleId: number }[];
     const [Y,M,D] = selectedDateKey.split('-').map(n => parseInt(n,10));
@@ -299,11 +240,17 @@ export default function ActivityScreen() {
       Alert.alert('Select time', 'Please choose a date and time.');
       return;
     }
+    // ★ Require signed-in user
+    if (!user || !user.id) {
+      Alert.alert('Sign in required', 'Please sign in to book this activity.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const booked_for = selectedTimeKey.replace('T',' ') + ':00';
       const payload = {
-        user_id: userId,              // ← hard-coded user
+        user_id: user.id,            // ★ use logged-in user's id
         activity_id: activity.id,
         schedule_id: selectedScheduleId,
         booked_for,
@@ -312,36 +259,24 @@ export default function ActivityScreen() {
 
       const res = await createBookingApi(payload);
 
-      // Success path
       if (res && !res.error && res.id) {
-        // If we came from a "Reschedule" flow, cancel the original booking NOW (after success)
         if (rescheduleFrom) {
-          try {
-            await updateBooking(Number(rescheduleFrom), { status: 'cancelled' });
-          } catch {
-            // Don't block success; just inform
-            Alert.alert('Note', 'New time booked, but the old booking could not be cancelled automatically.');
-          }
+          try { await updateBooking(Number(rescheduleFrom), { status: 'cancelled' }); }
+          catch { Alert.alert('Note', 'New time booked, but the old booking could not be cancelled automatically.'); }
         }
-
         Alert.alert('Booked ✅', `#${res.id} • ${activity.title}`);
         return;
       }
 
-      // Error path (map server code to friendly text)
       const msg = bookingErrorToMessage(res);
       Alert.alert('Cannot book', msg);
     } catch {
-      // Network/parse issues (e.g., HTML error page → “Unexpected <”)
       Alert.alert('Cannot book', 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  /* ============================
-     Render
-  ============================ */
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-white items-center justify-center">
@@ -372,6 +307,8 @@ export default function ActivityScreen() {
     const [Y,M] = selectedDateKey.split('-').map(n=>parseInt(n,10));
     return `${MONTHS[(M-1) as number]} ${Y}`;
   })();
+
+  const canBook = !!user && !!user.id && !!selectedTimeKey && !!selectedScheduleId && !submitting;
 
   return (
     <>
@@ -414,7 +351,7 @@ export default function ActivityScreen() {
             ) : null}
           </View>
 
-          {/* Weekly schedule (grouped by day) */}
+          {/* Weekly schedule */}
           <View className="px-5 mt-8">
             <SectionTitle>Weekly schedule</SectionTitle>
             {allSchedules.length ? (
@@ -426,20 +363,13 @@ export default function ActivityScreen() {
                     return (
                       <View key={dow}>
                         <View className="px-4 py-3">
-                          <Text className="text-[14px] font-semibold text-gray-900">
-                            {WEEKDAYS[dow]}
-                          </Text>
+                          <Text className="text-[14px] font-semibold text-gray-900">{WEEKDAYS[dow]}</Text>
                           <View className="mt-1">
                             {rows.map((s) => {
                               const inactive = !Boolean(s.is_active);
                               return (
-                                <Text
-                                  key={s.id}
-                                  className={`text-[13px] ${inactive ? 'text-gray-400' : 'text-gray-600'}`}
-                                >
-                                  {s.start_time.slice(0,5)}
-                                  {s.end_time ? ` – ${s.end_time.slice(0,5)}` : ''}
-                                  {s.capacity != null ? `   cap ${s.capacity}` : ''}
+                                <Text key={s.id} className={`text-[13px] ${inactive ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {s.start_time.slice(0,5)}{s.end_time ? ` – ${s.end_time.slice(0,5)}` : ''}{s.capacity != null ? `   cap ${s.capacity}` : ''}
                                 </Text>
                               );
                             })}
@@ -455,57 +385,40 @@ export default function ActivityScreen() {
             )}
           </View>
 
-          {/* Instructors (names only) */}
+          {/* Instructors */}
           <View className="px-5 mt-10">
             <SectionTitle>Instructors</SectionTitle>
             {activity.instructors && activity.instructors.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
-                {activity.instructors.map((m) => (
-                  <InstructorCard key={m.id} person={m} />
-                ))}
+                {activity.instructors.map((m) => (<InstructorCard key={m.id} person={m} />))}
               </ScrollView>
             ) : (
               <Text className="text-[14px] text-gray-600">No instructors listed.</Text>
             )}
           </View>
 
-          {/* Booking — Select time (using #7C3AED) */}
+          {/* Booking section */}
           <View className="px-5 mt-10 mb-8">
             <SectionTitle>Select time</SectionTitle>
 
-            {/* Month label */}
-            {selectedDateKey ? (
-              <Text className="text-[13px] text-gray-600 mb-3">{monthLabel}</Text>
-            ) : null}
+            {selectedDateKey ? <Text className="text-[13px] text-gray-600 mb-3">{monthLabel}</Text> : null}
 
             {/* Day chips */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 12 }}>
               {dayChips.map((c) => {
                 const active = selectedDateKey === c.key;
                 return (
-                  <TouchableOpacity
-                    key={c.key}
-                    onPress={() => setSelectedDateKey(c.key)}
-                    activeOpacity={0.8}
-                    className="mr-3 items-center"
-                  >
-                    <View
-                      className="w-14 h-14 rounded-full border items-center justify-center"
-                      style={active ? activeBgBr : undefined}
-                    >
-                      <Text className={`text-[16px] font-semibold ${active ? 'text-white' : 'text-gray-900'}`}>
-                        {c.d}
-                      </Text>
+                  <TouchableOpacity key={c.key} onPress={() => setSelectedDateKey(c.key)} activeOpacity={0.8} className="mr-3 items-center">
+                    <View className="w-14 h-14 rounded-full border items-center justify-center" style={active ? activeBgBr : undefined}>
+                      <Text className={`text-[16px] font-semibold ${active ? 'text-white' : 'text-gray-900'}`}>{c.d}</Text>
                     </View>
-                    <Text className="mt-1 text-[12px]" style={active ? activeText : undefined}>
-                      {c.dowLabel}
-                    </Text>
+                    <Text className="mt-1 text-[12px]" style={active ? activeText : undefined}>{c.dowLabel}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
-            {/* Time slot list */}
+            {/* Time slots */}
             <View className="mt-5">
               {selectedDateKey && timeSlots.length ? (
                 timeSlots.map((slot) => {
@@ -513,10 +426,7 @@ export default function ActivityScreen() {
                   return (
                     <TouchableOpacity
                       key={slot.key}
-                      onPress={() => {
-                        setSelectedTimeKey(slot.key);
-                        setSelectedScheduleId(slot.scheduleId);
-                      }}
+                      onPress={() => { setSelectedTimeKey(slot.key); setSelectedScheduleId(slot.scheduleId); }}
                       activeOpacity={0.8}
                       className="mb-3 rounded-2xl border px-4 py-4 bg-white border-gray-300"
                       style={isSelected ? activeBgBr : undefined}
@@ -537,13 +447,17 @@ export default function ActivityScreen() {
             {/* Submit */}
             <TouchableOpacity
               onPress={onCreateBooking}
-              disabled={submitting || !selectedTimeKey || !selectedScheduleId}
+              disabled={!canBook}
               activeOpacity={0.85}
               className="mt-6 px-5 py-3 rounded-full"
-              style={submitting || !selectedTimeKey ? { backgroundColor: '#D1D5DB' } : { backgroundColor: ACTIVE_HEX }}
+              style={
+                !canBook
+                  ? { backgroundColor: '#D1D5DB' }
+                  : { backgroundColor: ACTIVE_HEX }
+              }
             >
               <Text className="text-white text-center text-[15px] font-semibold">
-                {submitting ? 'Booking...' : 'Book now'}
+                {submitting ? 'Booking...' : (!user || !user.id ? 'Sign in to book' : 'Book now')}
               </Text>
             </TouchableOpacity>
           </View>

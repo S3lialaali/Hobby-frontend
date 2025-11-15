@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {View,Text,ScrollView,Image,TouchableOpacity,ActivityIndicator,Alert, RefreshControl,} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { fetchBookings, updateBooking } from '../../api/bookings';
 import { fetchActivityById } from '../../api/activities';
+import { fetchBookings, updateBooking } from '../../api/bookings';
 import { resolveImageUrl } from '../../api/client';
+import { useAuth } from '../../sessions/AuthContext';
 
 type RawStatus = 'confirmed' | 'expired' | 'canceled' | 'cancelled';
 type Booking = {
@@ -18,7 +19,6 @@ type Booking = {
 };
 type Activity = { id: number; title: string; images?: { id?: number; url: string }[] };
 
-const USER_ID = 2;
 const VIOLET = '#7C3AED';
 
 function parseDate(dt?: string | null) {
@@ -56,6 +56,8 @@ function normalizeStatus(s: RawStatus): 'confirmed' | 'expired' | 'cancelled' {
 export default function BookingScreen() {
   const router = useRouter();
 
+  const { user, initializing } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -65,7 +67,14 @@ export default function BookingScreen() {
   async function load() {
     setError(null);
     try {
-      const rows = await fetchBookings({ user_id: USER_ID });
+      // require a logged in user
+      if (!user || !user.id) {
+        setBookings([]);
+        setActivities({});
+        return;
+      }
+
+      const rows = await fetchBookings({ user_id: user.id });
       const list: Booking[] = Array.isArray(rows) ? rows : [];
       setBookings(list);
 
@@ -96,7 +105,12 @@ export default function BookingScreen() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    // load bookings once auth has been resolved and when user changes
+    if (initializing) return; // wait for auth restore
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, initializing]);
 
   const upcoming = useMemo(
     () =>
