@@ -15,6 +15,21 @@ export default function Index() {
     );
   }
 
-  // After init: go to tabs if logged in, otherwise to login
-  return <Redirect href={user ? "/(tabs)" : "/screens/login"} />;
+   if (!user) {
+    return <Redirect href="/screens/login" />;
+  }
+
+  // Logged in: route by role
+  if (user.role === "business") {
+    // business -> establishment interface
+    return <Redirect href="/(establishment)/dashboard" />; // or "/(establishment)/dashboard" if that’s your entry
+  }
+
+  // (optional) admin role
+  if (user.role === "admin") {
+    return <Redirect href="/(admin)/dashboard" />;
+  }
+
+  // default -> normal user tabs
+  return <Redirect href="/(tabs)" />;
 }

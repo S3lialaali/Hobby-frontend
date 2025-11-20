@@ -114,12 +114,12 @@ export default function SignupBusiness() {
         lat,
         lng,
       });
-
+      
       // Business signups are pending approval
       Alert.alert(
         "Application submitted",
         "Your business is pending approval. You will be notified once it's approved.",
-        [{ text: "OK", onPress: () => router.replace("/screens/login") }]
+        [{ text: "OK", onPress: () => router.replace("../../(establishment)/dashboard") }]
       );
     } catch (err) {
       const msg = getApiError(err);

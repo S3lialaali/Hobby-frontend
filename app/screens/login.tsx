@@ -9,7 +9,7 @@ export default function LoginScreen() {
   const [identifier, setIdentifier] = useState(""); // email OR phone
   const [loading, setLoading] = useState(false);
 
-  const { signIn, user } = useAuth();
+  const { signIn } = useAuth();
 
   async function onSubmit() {
     if (!identifier || !password) {
@@ -18,21 +18,23 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      // 🔑 Use the context so it sets user + tokens and updates the UI state
+      // Use the context so it sets user + tokens and updates the UI state
       const data = await signIn({ identifier, password });
 
       // Prefer business status from the response; fall back to context if needed
-      const businessStatus =
-        data?.business?.status ?? user?.business?.status ?? null;
-
-      if (businessStatus && businessStatus !== "approved") {
-        Alert.alert(
-          "Pending approval",
-          "Your business is still awaiting approval."
-        );
-        // Optional: router.replace("/screens/pending");
-      } else {
-        router.replace("/(tabs)");
+      const role = data?.user?.role ?? null;
+      const businessStatus = data?.business?.status ?? null;
+      
+      if (role === "business"){
+        if (businessStatus && businessStatus !== "approved") {
+          Alert.alert(
+            "Pending approval",
+            "Your business is still awaiting approval."
+          );
+        }
+          router.replace("/(establishment)/dashboard");
+        } else {
+          router.replace("/(tabs)");
       }
     } catch (err) {
       Alert.alert("Login failed", getApiError(err));

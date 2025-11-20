@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			if (data?.accessToken) setAccessToken(data.accessToken);
 			if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
 			if (data?.user) setUser(data.user);
-			return data?.user ?? null;
+			return data ?? null;
 		} finally {
 			setLoading(false);
 		}
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			if (data?.accessToken) setAccessToken(data.accessToken);
 			if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
 			if (data?.user) setUser(data.user);
-			return data?.user ?? null;
+			return data ?? null;
 		} finally {
 			setLoading(false);
 		}
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			if (data?.accessToken) setAccessToken(data.accessToken);
 			if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
 			if (data?.user) setUser(data.user);
-			return data?.user ?? null;
+			return data ?? null;
 		} finally {
 			setLoading(false);
 		}
