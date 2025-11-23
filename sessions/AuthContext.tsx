@@ -60,7 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			// expected response: { accessToken, refreshToken, user }
 			if (data?.accessToken) setAccessToken(data.accessToken);
 			if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
-			if (data?.user) setUser(data.user);
+			console.log("REFRESH RESPONSE", data?.user, data?.business);
+			console.log("AUTH CONTEXT USER AFTER REFRESH", user);
+			if (data?.user) {
+				setUser(data.user);
+				console.log("REFRESH RESPONSE", data?.user, data?.business);
+				console.log("AUTH CONTEXT USER AFTER REFRESH", user);
+			}
 			return true;
 		} catch (err) {
 			// failed to refresh; clear any stored tokens

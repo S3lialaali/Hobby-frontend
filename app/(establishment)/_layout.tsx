@@ -50,6 +50,8 @@ export default function EstablishmentLayout() {
             <Tabs.Screen name = "activities" options={{title: "Activities"}} />
             {/*Instructor management screen*/}
             <Tabs.Screen name = "instructors" options={{title: "Instructors"}} />
+            {/*Account management*/}
+            <Tabs.Screen name = "account" options={{title: "Account"}}/>
         </Tabs>
         </View>
     );
