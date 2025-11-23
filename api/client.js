@@ -1,7 +1,7 @@
 //fetch client for the app
 import { loadRefreshToken, saveRefreshToken, clearRefreshToken} from "../sessions/storage";
 
-export const API_BASE_URL = "http://192.168.100.22:3000"; // ← change if your LAN IP changes
+export const API_BASE_URL = "http://172.20.10.8:3000"; // ← change if your LAN IP changes
 
 //toggles for DEV logs
 const LOG = {

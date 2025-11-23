@@ -1,168 +1,238 @@
-// app/(admin)/dashboards.tsx
-import React, { useEffect, useState, useMemo } from 'react';
+// app/(admin)/dashboard.tsx
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
   ActivityIndicator,
-  Image,
-  TouchableOpacity,
   RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
-import {
-  fetchEstablishments,
-  fetchBookings,
-  resolveImageUrl,
-  API_BASE_URL,
-} from '../../api';
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Stack, useRouter } from "expo-router";
+import { Feather, FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import { useAuth } from "../../sessions/AuthContext";
+import { fetchEstablishments } from "../../api/establishments";
+import { fetchModerationLogs } from "../../api/moderation";
+import { fetchReports, listUsers } from "../../api/users";
+import { fetchBookings } from "../../api/bookings";
 
-const VIOLET = '#7C3AED';
+const VIOLET = "#7C3AED";
 
-type User = {
-  id: number;
-  username: string;
-  email: string;
-  phone?: string | null;
-  role: 'user' | 'business' | 'admin';
-  created_at?: string;
-};
+function formatCurrency(amount: number) {
+  return amount.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
+}
 
 type Establishment = {
   id: number;
-  name: string;
-  image_url?: string | null;
-  clicks?: number | null;
-  category?: string | null;
-  status?: string;
+  status?: string | null;
 };
 
-type Booking = {
+type UserReport = {
   id: number;
-  user_id: number;
-  activity_id: number;
-  schedule_id?: number | null;
-  booked_for?: string | null;
-  status: 'confirmed' | 'expired' | 'canceled' | 'cancelled';
-  created_at?: string;
+  status?: string | null;
 };
 
-function StatusPill({ status }: { status: Booking['status'] }) {
-  const norm = status === 'cancelled' ? 'canceled' : status;
-  let bg = '#E5E7EB';
-  let color = '#374151';
-  if (norm === 'confirmed') {
-    bg = '#DCFCE7';
-    color = '#166534';
-  } else if (norm === 'canceled') {
-    bg = '#FEE2E2';
-    color = '#B91C1C';
-  } else if (norm === 'expired') {
-    bg = '#E0F2FE';
-    color = '#075985';
-  }
+function SummaryCard({
+  title,
+  value,
+  subtitle,
+  bgColor,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  bgColor: string;
+}) {
   return (
-    <View className="px-2 py-[2px] rounded-full" style={{ backgroundColor: bg }}>
-      <Text className="text-[11px] font-semibold" style={{ color }}>
-        {norm}
+    <View
+      className="w-[48%] rounded-2xl px-4 py-3 mb-4 border bg-white"
+      style={{
+        backgroundColor: `${bgColor}1A`,
+        borderColor: `${bgColor}33`,
+      }}
+    >
+      <Text className="text-[12px] font-semibold text-gray-700 mb-1">
+        {title}
       </Text>
+      <Text
+        className="text-[24px] font-extrabold mb-1"
+        style={{ color: bgColor }}
+      >
+        {value}
+      </Text>
+      {subtitle ? (
+        <Text className="text-[11px] text-gray-600" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-function formatDateTime(dt?: string | null) {
-  if (!dt) return '—';
-  const d = new Date(dt.includes('T') ? dt : dt.replace(' ', 'T'));
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function QueueItem({
+  icon,
+  title,
+  status,
+  progress,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  status: string;
+  progress?: number; // 0–100
+  onPress: () => void;
+}) {
+  const clamped = Math.max(0, Math.min(progress ?? 0, 100));
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      className="flex-row items-center mb-3 rounded-2xl bg-white px-4 py-3"
+    >
+      <View className="w-11 h-11 rounded-2xl items-center justify-center mr-3 bg-gray-100">
+        {icon}
+      </View>
+
+      <View className="flex-1">
+        <Text className="text-[14px] font-semibold text-gray-900">
+          {title}
+        </Text>
+        <Text className="text-[11px] text-gray-500 mt-0.5">{status}</Text>
+        <View className="h-1 rounded-full bg-gray-200 mt-2 overflow-hidden">
+          <View
+            className="h-full rounded-full"
+            style={{
+              width: `${clamped}%`,
+              backgroundColor: VIOLET,
+            }}
+          />
+        </View>
+      </View>
+
+      <Feather name="chevron-right" size={18} color="#9CA3AF" />
+    </TouchableOpacity>
+  );
 }
 
-export default function AdminDashboardScreen() {
+export default function AdminDashboard() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  const [pendingCount, setPendingCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
+  const [rejectedCount, setRejectedCount] = useState(0);
+  const [openReportsCount, setOpenReportsCount] = useState(0);
+  const [activeUsersCount, setActiveUsersCount] = useState(0);
+  const [bookingsCount, setBookingsCount] = useState(0);
+  const [moderationCount, setModerationCount] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [users, setUsers] = useState<User[]>([]);
-  const [establishments, setEstablishments] = useState<Establishment[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const displayName =
+    (user as any)?.name ||
+    (user as any)?.fullName ||
+    (user as any)?.username ||
+    (user as any)?.email ||
+    "Admin";
+
+  const roleLabel = (user as any)?.role
+    ? String((user as any).role).charAt(0).toUpperCase() +
+      String((user as any).role).slice(1)
+    : "Admin";
+
+  const loadStats = useCallback(async () => {
     setError(null);
     try {
-      // users
-      const usersRes = await fetch(`${API_BASE_URL}/api/users`);
-      const usersData = usersRes.ok ? await usersRes.json() : [];
+      const [
+        pendingEst,
+        approvedEst,
+        rejectedEst,
+        reports,
+        users,
+        bookings,
+        logs,
+      ] = await Promise.all([
+        fetchEstablishments({ status: "pending" }) as Promise<Establishment[] | null>,
+        fetchEstablishments({ status: "approved" }) as Promise<Establishment[] | null>,
+        fetchEstablishments({ status: "rejected" }) as Promise<Establishment[] | null>,
+        fetchReports() as Promise<UserReport[] | null>,
+        listUsers() as Promise<any[] | null>,
+        fetchBookings() as Promise<any[] | null>,
+        fetchModerationLogs() as Promise<any[] | null>,
+      ]);
 
-      // establishments
-      const estData = await fetchEstablishments({ limit: 200, status: 'approved' });
+      const pendingList = Array.isArray(pendingEst) ? pendingEst : [];
+      const approvedList = Array.isArray(approvedEst) ? approvedEst : [];
+      const rejectedList = Array.isArray(rejectedEst) ? rejectedEst : [];
+      const repList = Array.isArray(reports) ? reports : [];
+      const userList = Array.isArray(users) ? users : [];
+      const bookingList = Array.isArray(bookings) ? bookings : [];
+      const logsList = Array.isArray(logs) ? logs : [];
 
-      // bookings
-      const bookData = await fetchBookings({}); // admin: see all
+      setPendingCount(pendingList.length);
+      setApprovedCount(approvedList.length);
+      setRejectedCount(rejectedList.length);
 
-      setUsers(Array.isArray(usersData) ? usersData : []);
-      setEstablishments(Array.isArray(estData) ? estData : []);
-      setBookings(Array.isArray(bookData) ? bookData : []);
+      setOpenReportsCount(
+        repList.filter((r) => r.status !== "resolved").length
+      );
+
+      const activeUsers = userList.filter((u) => {
+        const status = String(u?.status ?? "active").toLowerCase();
+        if (status === "inactive" || status === "banned") return false;
+        return true;
+      }).length;
+      setActiveUsersCount(activeUsers);
+
+      setBookingsCount(bookingList.length);
+      setModerationCount(logsList.length);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load admin dashboard');
+      setError(e?.message || "Failed to load dashboard data");
+      setPendingCount(0);
+      setApprovedCount(0);
+      setRejectedCount(0);
+      setOpenReportsCount(0);
+      setActiveUsersCount(0);
+      setBookingsCount(0);
+      setModerationCount(0);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }
-
-  useEffect(() => {
-    load();
   }, []);
 
-  const totalUsers = users.length;
-  const totalEsts = establishments.length;
-  const totalBookings = bookings.length;
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
-  const recentBookings = useMemo(() => {
-    return [...bookings]
-      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-      .slice(0, 5);
-  }, [bookings]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  }, [loadStats]);
 
-  const topEstablishments = useMemo(() => {
-    return [...establishments]
-      .sort((a, b) => (Number(b.clicks || 0) - Number(a.clicks || 0)))
-      .slice(0, 5);
-  }, [establishments]);
-
-  if (loading) {
+  // Guard if non-admin somehow reaches this
+  if (user && (user as any).role && (user as any).role !== "admin") {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView className="flex-1 bg-white items-center justify-center">
-          <ActivityIndicator />
-          <Text className="mt-3 text-gray-600">Loading admin dashboard…</Text>
-        </SafeAreaView>
-      </>
-    );
-  }
-
-  if (error) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView className="flex-1 bg-white items-center justify-center px-6">
-          <Text className="text-[16px] font-semibold text-gray-900">Oops</Text>
-          <Text className="mt-2 text-[14px] text-gray-600 text-center">{error}</Text>
-          <TouchableOpacity
-            onPress={load}
-            className="mt-4 px-5 py-2 rounded-full bg-white border border-gray-200"
-          >
-            <Text className="text-[13px] font-semibold text-gray-900">Try again</Text>
-          </TouchableOpacity>
+        <SafeAreaView
+          className="flex-1 bg-white items-center justify-center px-6"
+          edges={["top"]}
+        >
+          <Text className="text-[18px] font-semibold text-gray-900 mb-2">
+            Restricted area
+          </Text>
+          <Text className="text-[13px] text-gray-500 text-center">
+            This section is only available for admin accounts.
+          </Text>
         </SafeAreaView>
       </>
     );
@@ -171,159 +241,132 @@ export default function AdminDashboardScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-[#F3F4F6]" edges={["top"]}>
         <ScrollView
+          contentContainerStyle={{ paddingBottom: 32 }}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                load();
-              }}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
-          contentContainerStyle={{ paddingBottom: 28 }}
         >
           {/* Header */}
-          <View className="px-5 pt-4 flex-row items-center justify-between">
-            <View>
-              <Text className="text-[28px] font-extrabold text-gray-900">Admin dashboard</Text>
-              <Text className="text-[13px] text-gray-500 mt-1">
-                Overview of users, bookings, and establishments
-              </Text>
-            </View>
-            <View
-              className="w-10 h-10 rounded-full items-center justify-center"
-              style={{ backgroundColor: `${VIOLET}1A` }}
-            >
-              <Text className="text-[14px] font-bold" style={{ color: VIOLET }}>
-                A
-              </Text>
-            </View>
+          <View className="px-5 pt-4 pb-2">
+            <Text className="text-[28px] font-extrabold text-gray-900">
+              Dashboard
+            </Text>
+            <Text className="text-[13px] text-gray-500 mt-1">
+              Overview & metrics
+            </Text>
+
+            {error && (
+              <View className="mt-3 px-4 py-2 rounded-xl bg-red-50 border border-red-200">
+                <Text className="text-[11px] text-red-600">{error}</Text>
+              </View>
+            )}
           </View>
 
-          {/* Stat cards */}
-          <View className="px-5 mt-6 flex-row -mx-1">
-            <View className="flex-1 mx-1 rounded-2xl border border-gray-200 bg-white p-4">
-              <Text className="text-[12px] text-gray-500">Users</Text>
-              <Text className="mt-1 text-[24px] font-extrabold text-gray-900">{totalUsers}</Text>
-              <Text className="mt-1 text-[11px] text-gray-400">Total registered</Text>
-            </View>
-            <View className="flex-1 mx-1 rounded-2xl border border-gray-200 bg-white p-4">
-              <Text className="text-[12px] text-gray-500">Establishments</Text>
-              <Text className="mt-1 text-[24px] font-extrabold text-gray-900">{totalEsts}</Text>
-              <Text className="mt-1 text-[11px] text-gray-400">Approved & active</Text>
-            </View>
-            <View className="flex-1 mx-1 rounded-2xl border border-gray-200 bg-white p-4">
-              <Text className="text-[12px] text-gray-500">Bookings</Text>
-              <Text className="mt-1 text-[24px] font-extrabold text-gray-900">{totalBookings}</Text>
-              <Text className="mt-1 text-[11px] text-gray-400">All time</Text>
-            </View>
+          {/* 2x2 grid of summary cards */}
+          <View className="px-5 mt-4 flex-row flex-wrap justify-between">
+            {loading && !refreshing ? (
+              <View className="w-full py-8 items-center">
+                <ActivityIndicator />
+              </View>
+            ) : (
+              <>
+                <SummaryCard
+                  title="Active Establishments"
+                  value={approvedCount}
+                  subtitle="Approved & visible"
+                  bgColor="#16A34A"
+                />
+                <SummaryCard
+                  title="Active Users"
+                  value={activeUsersCount}
+                  subtitle="Currently active accounts"
+                  bgColor="#7C3AED"
+                />
+                <SummaryCard
+                  title="Total Bookings"
+                  value={bookingsCount}
+                  subtitle="All-time bookings"
+                  bgColor="#F97316"
+                />
+                <SummaryCard
+                  title="Moderation logs"
+                  value={moderationCount}
+                  subtitle="All admin actions logged"
+                  bgColor="#0EA5E9"
+                />
+              </>
+            )}
           </View>
 
-          {/* Recent bookings */}
-          <View className="px-5 mt-10">
+          {/* "Your queues" section */}
+          <View className="px-5 mt-8">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[20px] font-bold text-gray-900">Recent bookings</Text>
+              <Text className="text-[13px] font-semibold text-gray-600">
+                YOUR QUEUES
+              </Text>
               <TouchableOpacity
-                onPress={() => router.push('/(tabs)/booking')}
-                className="px-3 py-1 rounded-full"
-                style={{ backgroundColor: `${VIOLET}1A` }}
+                onPress={() => router.push("/(admin)/establishments")}
               >
-                <Text className="text-[12px] font-semibold" style={{ color: VIOLET }}>
+                <Text className="text-[12px] font-semibold text-violet-600">
                   View all
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <View className="rounded-2xl border border-gray-200 bg-white">
-              {recentBookings.length === 0 ? (
-                <View className="px-4 py-6 items-center">
-                  <Text className="text-[13px] text-gray-500">No bookings yet.</Text>
-                </View>
-              ) : (
-                recentBookings.map((b, idx) => (
-                  <View key={b.id}>
-                    <View className="flex-row items-center px-4 py-3">
-                      <View
-                        className="w-9 h-9 rounded-full items-center justify-center mr-3"
-                        style={{ backgroundColor: `${VIOLET}1A` }}
-                      >
-                        <Text className="text-[11px] font-bold" style={{ color: VIOLET }}>
-                          #{b.id}
-                        </Text>
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-[14px] font-semibold text-gray-900">
-                          User {b.user_id} → Activity {b.activity_id}
-                        </Text>
-                        <Text className="text-[12px] text-gray-500">
-                          {formatDateTime(b.booked_for || b.created_at)}
-                        </Text>
-                      </View>
-                      <StatusPill status={b.status} />
-                    </View>
-                    {idx < recentBookings.length - 1 && <View className="h-px bg-gray-200 ml-16" />}
-                  </View>
-                ))
-              )}
+            <QueueItem
+              icon={<Feather name="check-square" size={20} color={VIOLET} />}
+              title="Establishment Approvals"
+              status={
+                pendingCount > 0
+                  ? `${pendingCount} pending approval`
+                  : "All establishments reviewed"
+              }
+              progress={pendingCount === 0 ? 100 : 35}
+              onPress={() => router.push("/(admin)/establishments")}
+            />
+
+            <QueueItem
+              icon={
+                <MaterialIcons name="report-problem" size={20} color="#F97316" />
+              }
+              title="User Reports & Complaints"
+              status={
+                openReportsCount > 0
+                  ? `${openReportsCount} open report(s)`
+                  : "No open reports right now"
+              }
+              progress={openReportsCount === 0 ? 100 : 40}
+              onPress={() => router.push("/(admin)/Complaints")}
+            />
+
+            <QueueItem
+              icon={<Feather name="settings" size={20} color="#22C55E" />}
+              title="Admin Settings"
+              status="Roles, preferences & advanced options"
+              progress={60}
+              onPress={() => router.push("/(admin)/profile")}
+            />
+          </View>
+
+          {/* Small text block like in the design */}
+          <View className="px-5 mt-8">
+            <View className="rounded-2xl bg-white px-4 py-3">
+              <Text className="text-[13px] text-gray-800 mb-1 font-semibold">
+                Overview
+              </Text>
+              <Text className="text-[12px] text-gray-500 mt-1">
+                Use this dashboard to keep track of approvals, reports and
+                admin tasks.
+              </Text>
             </View>
           </View>
 
-          {/* Top establishments */}
-          <View className="px-5 mt-10">
-            <Text className="text-[20px] font-bold text-gray-900 mb-3">Top establishments</Text>
-            <View className="rounded-2xl border border-gray-200 bg-white">
-              {topEstablishments.length === 0 ? (
-                <View className="px-4 py-6 items-center">
-                  <Text className="text-[13px] text-gray-500">No establishments yet.</Text>
-                </View>
-              ) : (
-                topEstablishments.map((est, idx) => {
-                  const imgUri = est.image_url ? resolveImageUrl(est.image_url) : null;
-                  return (
-                    <TouchableOpacity
-                      key={est.id}
-                      activeOpacity={0.85}
-                      className="flex-row items-center px-4 py-3"
-                      onPress={() =>
-                        router.push({
-                          pathname: '/screens/establishment',
-                          params: { id: String(est.id) },
-                        })
-                      }
-                    >
-                      <View className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 mr-3">
-                        {imgUri ? (
-                          <Image source={{ uri: imgUri }} className="w-full h-full" />
-                        ) : (
-                          <View className="flex-1 items-center justify-center">
-                            <Text className="text-[10px] text-gray-300">No image</Text>
-                          </View>
-                        )}
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-[14px] font-semibold text-gray-900" numberOfLines={1}>
-                          {est.name}
-                        </Text>
-                        <Text className="text-[12px] text-gray-500" numberOfLines={1}>
-                          {est.category || '—'}
-                        </Text>
-                      </View>
-                      <View className="items-end ml-3">
-                        <Text className="text-[12px] text-gray-500 mb-1">Clicks</Text>
-                        <Text className="text-[14px] font-bold text-gray-900">
-                          {Number(est.clicks || 0)}
-                        </Text>
-                      </View>
-                      {idx < topEstablishments.length - 1 && (
-                        <View className="absolute bottom-0 left-16 right-0 h-px bg-gray-200" />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </View>
+          <View className="px-5 mt-10 mb-4 items-center opacity-60">
+            <Text className="text-[11px] text-gray-500">
+              Hobby App · Admin Panel
+            </Text>
           </View>
         </ScrollView>
       </SafeAreaView>

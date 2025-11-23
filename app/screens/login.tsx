@@ -54,6 +54,8 @@ export default function LoginScreen() {
           );
         }
           router.replace("/(establishment)/dashboard");
+        }else if(role=="admin"){
+          router.replace("/(admin)/dashboard");
         } else {
           router.replace("/(tabs)");
       }
