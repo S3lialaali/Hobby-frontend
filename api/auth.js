@@ -25,3 +25,14 @@ export async function refresh(refreshToken) {
 export async function logout(refreshToken) {
     return post("/auth/logout", { refreshToken });
 }
+
+// send email verification code
+export async function sendEmailVerification(email) {
+    return post("/auth/send-email-verification", {email});
+}
+
+//verify email
+export async function verifyEmail(payload) {
+    //payload is email and code
+    return post("/auth/verify-email", payload);
+}

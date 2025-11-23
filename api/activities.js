@@ -28,6 +28,14 @@ export function createActivity(payload) {
     return post(base, payload);
 }
 
+export function updateActivity(id, payload) {
+  return put(`${base}/${id}`, payload);
+}
+
+export function deleteActivity(id) {
+  return del(`${base}/${id}`);
+}
+
 export function fetchSchedulesByActivity(activityId, params = {}) {
     const q = appendQuery("/api/activity_schedules", { activity_id: activityId, ...params });
     return get(q);

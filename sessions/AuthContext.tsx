@@ -20,6 +20,8 @@ type AuthContextType = {
 	registerUser: (payload: Record<string, any>) => Promise<User>;
 	registerBusiness: (payload: Record<string, any>) => Promise<User>;
 	refreshSession: () => Promise<boolean>;
+	sendEmailVerification: (email: string) => Promise<any>;
+	verifyEmailCode: (payload: { email: string; code: string}) => Promise<any>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -138,6 +140,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		}
 	}
 
+	async function sendEmailVerification(email: string) {
+		return authApi.sendEmailVerification(email);
+	}
+
+	async function verifyEmailCode(payload: { email: string; code: string}) {
+		const data = await authApi.verifyEmail(payload);
+		if (data?.user) {
+			setUser(data.user);  //updates is_email_verified in context
+		}
+		return data ?? null;
+	}
+
 	const value: AuthContextType = {
 		user,
 		initializing,
@@ -147,6 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		registerUser,
 		registerBusiness,
 		refreshSession,
+		sendEmailVerification,
+		verifyEmailCode
 	};
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -11,7 +11,7 @@ export default function SignupUser() {
   const [password, setPassword] = useState("");
   const [loading, setLoading]   = useState(false);
 
-  const { registerUser } = useAuth();
+  const { registerUser, sendEmailVerification } = useAuth();
 
   async function onSubmit() {
     if (!username || !email || !password) {
@@ -28,11 +28,25 @@ export default function SignupUser() {
         phone: phone || null,
       });
 
+      const verifiedEmail = res?.user?.email || email;
+
+      // try {
+      //   await sendEmailVerification(verifiedEmail);
+      // } catch (err) {
+      //   console.warn("Failed to send verification email:", err);
+      // }
+
+      //go to verifiy email screen after signing up
+      router.replace({
+        pathname:"/screens/verify-email",
+        params: {email: verifiedEmail},
+      });
+
       // If your backend returns a message you still want to surface:
-      if (res?.message === "user_created") {
-        // optional: Alert.alert("Signup", "Account created.");
-      }
-      router.replace("/(tabs)");
+      // if (res?.message === "user_created") {
+      //   // optional: Alert.alert("Signup", "Account created.");
+      // }
+      // router.replace("/(tabs)");
     } catch (err) {
       const msg = getApiError(err);
       if (msg === "email_or_username_exists" || msg === "conflict") {

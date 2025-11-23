@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { getApiError } from "@/api/client";
-// ⬇️ Use AuthContext instead of direct API + token setters
+// Use AuthContext instead of direct API + token setters
 import { useAuth } from "@/sessions/AuthContext";
 
 // Parse latitude/longitude from Google Maps URLs
@@ -81,8 +81,8 @@ export default function SignupBusiness() {
 
   const [loading, setLoading] = useState(false);
 
-  // ⬇️ from AuthContext
-  const { registerBusiness } = useAuth();
+  //  from AuthContext
+  const { registerBusiness, sendEmailVerification } = useAuth();
 
   async function onSubmit() {
     if (!username || !email || !password || !name) {
@@ -114,12 +114,27 @@ export default function SignupBusiness() {
         lat,
         lng,
       });
+
+      const verifiedEmail = res?.user?.email || email;
+
+      // try {
+      //   await sendEmailVerification(verifiedEmail);
+      // } catch (err) {
+      //   console.warn("Failed to send verification email:", err);
+      // }
       
-      // Business signups are pending approval
       Alert.alert(
         "Application submitted",
-        "Your business is pending approval. You will be notified once it's approved.",
-        [{ text: "OK", onPress: () => router.replace("../../(establishment)/dashboard") }]
+        "Your business account has been created. A verification code has been sent to your email.",
+        [{ 
+          text: "OK",
+          onPress: () =>
+          router.replace({
+            pathname: "/screens/verify-email",
+            params: {email: verifiedEmail}
+        }),
+       },
+      ]
       );
     } catch (err) {
       const msg = getApiError(err);
