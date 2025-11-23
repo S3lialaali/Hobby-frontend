@@ -15,8 +15,21 @@ export default function Index() {
     );
   }
 
+  //not logged in, go to login
    if (!user) {
     return <Redirect href="/screens/login" />;
+  }
+
+  //logged in but email not verified. always go to verification screen
+  if (!user.is_email_verified) {
+    return (
+      <Redirect 
+        href={{
+          pathname: "/screens/verify-email",
+          params: { email: user.email}
+        }}
+      />
+    );
   }
 
   // Logged in: route by role

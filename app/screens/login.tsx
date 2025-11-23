@@ -21,6 +21,27 @@ export default function LoginScreen() {
       // Use the context so it sets user + tokens and updates the UI state
       const data = await signIn({ identifier, password });
 
+      const user = data?.user;
+
+      // If email is not verified, force user to the verify email screen
+      if (user && !user.is_email_verified) {
+        Alert.alert(
+          "Verify your email",
+          "Please verify your email before using the app.",
+          [
+            {
+              text: "OK",
+              onPress: () =>
+                router.replace({
+                  pathname: "/screens/verify-email",
+                  params: { email: user.email },
+                }),
+            },
+          ]
+        );
+        return; // stop here, don't route to tabs/establishment yet
+      }
+
       // Prefer business status from the response; fall back to context if needed
       const role = data?.user?.role ?? null;
       const businessStatus = data?.business?.status ?? null;
