@@ -87,7 +87,7 @@ export default function PendingEstablishmentScreen() {
       setEst(estData);
 
       // 2) activities for this establishment
-      const acts = await fetchActivities(estId);
+      const acts = await fetchActivities({ establishment_id: estId });
       setActivities(acts);
 
       // 3) schedules — we only have fetchSchedulesByActivity(activityId),
@@ -95,8 +95,13 @@ export default function PendingEstablishmentScreen() {
       const schedMap: Record<number, ActivitySchedule[]> = {};
       await Promise.all(
         acts.map(async (a: Activity) => {
-          const scheds = await fetchSchedulesByActivity(a.id);
-          schedMap[a.id] = Array.isArray(scheds) ? scheds : [];
+          try {
+            const scheds = await fetchSchedulesByActivity(a.id);
+            schedMap[a.id] = Array.isArray(scheds) ? scheds : [];
+          } catch (err) {
+            // If schedules are missing or endpoint returns 404, treat as none
+            schedMap[a.id] = [];
+          }
         })
       );
       setSchedulesByActivity(schedMap);

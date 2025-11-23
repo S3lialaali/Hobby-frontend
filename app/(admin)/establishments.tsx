@@ -9,10 +9,16 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { API_BASE_URL, resolveImageUrl } from '../../api/client';
+import { createModerationLog } from '../../api/moderation';
+import { useAuth } from '../../sessions/AuthContext';
 
 const VIOLET = '#7C3AED';
 
@@ -33,10 +39,18 @@ type Establishment = {
 
 export default function AdminEstablishmentsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pending, setPending] = useState<Establishment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [logModal, setLogModal] = useState<{
+    visible: boolean;
+    est: Establishment | null;
+    action: 'approved' | 'rejected';
+    notes: string;
+  }>({ visible: false, est: null, action: 'approved', notes: '' });
 
   const fetchPending = useCallback(async () => {
     setError(null);
@@ -58,9 +72,10 @@ export default function AdminEstablishmentsScreen() {
     fetchPending();
   }, [fetchPending]);
 
-  async function setStatus(id: number, status: 'approved' | 'rejected') {
+  async function setStatus(est: Establishment, status: 'approved' | 'rejected', notes?: string) {
+    setActionLoadingId(est.id);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/establishments/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/establishments/${est.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -69,9 +84,41 @@ export default function AdminEstablishmentsScreen() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error || 'Request failed');
       }
-      setPending((prev) => prev.filter((e) => e.id !== id));
+      if ((user as any)?.id) {
+        try {
+          await createModerationLog({
+            admin_user_id: (user as any).id,
+            action: status === 'approved' ? 'approve_establishment' : 'reject_establishment',
+            entity_type: 'establishment',
+            entity_id: est.id,
+            notes: notes?.trim?.() || null,
+          });
+        } catch (logErr: any) {
+          Alert.alert(
+            'Logged action partially',
+            logErr?.message || 'Status was updated but the moderation log could not be saved.'
+          );
+        }
+      }
+      setPending((prev) => prev.filter((e) => e.id !== est.id));
+      return true;
     } catch (e: any) {
       Alert.alert('Could not update', e?.message || 'Please try again.');
+      return false;
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  function openLogModal(est: Establishment, action: 'approved' | 'rejected') {
+    setLogModal({ visible: true, est, action, notes: '' });
+  }
+
+  async function submitModerationLog() {
+    if (!logModal.est) return;
+    const ok = await setStatus(logModal.est, logModal.action, logModal.notes);
+    if (ok) {
+      setLogModal({ visible: false, est: null, action: 'approved', notes: '' });
     }
   }
 
@@ -81,7 +128,7 @@ export default function AdminEstablishmentsScreen() {
       `This will make "${est.name}" visible to users.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Approve', style: 'default', onPress: () => setStatus(est.id, 'approved') },
+        { text: 'Continue', style: 'default', onPress: () => openLogModal(est, 'approved') },
       ]
     );
   }
@@ -95,7 +142,7 @@ export default function AdminEstablishmentsScreen() {
         {
           text: 'Reject',
           style: 'destructive',
-          onPress: () => setStatus(est.id, 'rejected'),
+          onPress: () => openLogModal(est, 'rejected'),
         },
       ]
     );
@@ -228,6 +275,7 @@ export default function AdminEstablishmentsScreen() {
                         <TouchableOpacity
                           activeOpacity={0.85}
                           onPress={() => onApprove(est)}
+                          disabled={actionLoadingId === est.id}
                           className="px-4 py-2 rounded-full mr-3"
                           style={{ backgroundColor: VIOLET }}
                         >
@@ -236,6 +284,7 @@ export default function AdminEstablishmentsScreen() {
                         <TouchableOpacity
                           activeOpacity={0.85}
                           onPress={() => onReject(est)}
+                          disabled={actionLoadingId === est.id}
                           className="px-4 py-2 rounded-full border border-red-200"
                         >
                           <Text className="text-[14px] font-semibold text-red-500">Reject</Text>
@@ -249,6 +298,70 @@ export default function AdminEstablishmentsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={logModal.visible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (actionLoadingId) return;
+          setLogModal({ visible: false, est: null, action: 'approved', notes: '' });
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1 justify-end"
+        >
+          <View className="flex-1 bg-black/40" />
+          <View className="bg-white rounded-t-3xl px-5 pt-5 pb-6">
+            <Text className="text-[16px] font-extrabold text-gray-900">
+              {logModal.action === 'approved' ? 'Approve establishment' : 'Reject establishment'}
+            </Text>
+            <Text className="text-[13px] text-gray-600 mt-1">
+              Add moderation notes (optional). A log entry will be created.
+            </Text>
+
+            <TextInput
+              placeholder="Notes for this decision"
+              multiline
+              value={logModal.notes}
+              onChangeText={(t) => setLogModal((prev) => ({ ...prev, notes: t }))}
+              className="mt-4 border border-gray-200 rounded-2xl px-4 py-3 text-[14px] text-gray-900"
+              placeholderTextColor="#9CA3AF"
+              editable={!actionLoadingId}
+              style={{ minHeight: 96, textAlignVertical: 'top' }}
+            />
+
+            <View className="flex-row justify-end mt-4">
+              <TouchableOpacity
+                onPress={() =>
+                  !actionLoadingId &&
+                  setLogModal({ visible: false, est: null, action: 'approved', notes: '' })
+                }
+                className="px-4 py-2 mr-2 rounded-full bg-gray-100"
+                disabled={!!actionLoadingId}
+              >
+                <Text className="text-[14px] font-semibold text-gray-700">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitModerationLog}
+                className="px-5 py-2 rounded-full"
+                style={{ backgroundColor: VIOLET, opacity: actionLoadingId ? 0.7 : 1 }}
+                disabled={!!actionLoadingId}
+                activeOpacity={0.85}
+              >
+                {actionLoadingId ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-[14px] font-semibold text-white">
+                    {logModal.action === 'approved' ? 'Approve & Log' : 'Reject & Log'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }

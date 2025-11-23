@@ -1,5 +1,5 @@
 //rets wrapper for users routes
-import { del, get, post, put } from "./client";
+import { del, get, patch, post, put } from "./client";
 
 const base = "/api/users";
 
@@ -45,3 +45,8 @@ export function fetchUserReports(id) {
 export function fetchUserReviews(id) {
   return get(`${base}/${id}/reviews`);
 }
+
+export function updateReportsStatus(id, status) {
+    // backend exposes singular route for updating a single report
+    return patch(`${base}/reports/${id}/status`, { status });
+} 
