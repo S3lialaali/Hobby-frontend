@@ -156,6 +156,12 @@ export default function VerifyEmailScreen() {
             <Text className="text-blue-600">Resend code</Text>
           )}
         </Pressable>
+        <Pressable
+        onPress={() => router.replace("/screens/login")}
+        className="items-center mt-2"
+      >
+        <Text className="text-gray-600 underline">Back to login</Text>
+      </Pressable>
       </View>
     </TouchableWithoutFeedback>
   );
