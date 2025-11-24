@@ -32,7 +32,19 @@ export default function Index() {
     );
   }
 
-  // Logged in: route by role
+  //After email is verified, enforce phone verification
+  if (!user.is_phone_verified) {
+    return (
+      <Redirect
+        href={{
+          pathname: "/screens/verify-phone",
+          params: { phone: user.phone },
+        }}
+      />
+    );
+  }
+
+  // Logged in, then route by role
   if (user.role === "business") {
     // business -> establishment interface
     return <Redirect href="/(establishment)/dashboard" />; // or "/(establishment)/dashboard" if that’s your entry

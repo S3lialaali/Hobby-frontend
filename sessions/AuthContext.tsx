@@ -22,6 +22,8 @@ type AuthContextType = {
 	refreshSession: () => Promise<boolean>;
 	sendEmailVerification: (email: string) => Promise<any>;
 	verifyEmailCode: (payload: { email: string; code: string}) => Promise<any>;
+	sendPhoneVerification: (phone: string) => Promise<void>;
+    verifyPhoneCode: (payload: { phone: string; code: string }) => Promise<any>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -152,6 +154,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		return data ?? null;
 	}
 
+	async function sendPhoneVerification(phone: string) {
+		if (!phone) return;
+		await authApi.sendPhoneVerification(phone);
+	}
+
+	async function verifyPhoneCode(payload: { phone: string; code: string }) {
+		const { phone, code } = payload;
+		if (!phone || !code) throw new Error("phone_and_code_required");
+
+		const data = await authApi.verifyPhone({ phone, code });
+
+		// If backend returns updated user with is_phone_verified = 1, update context
+		if (data?.user) {
+			setUser(data.user);
+		}
+		return data;
+	}
+
+
 	const value: AuthContextType = {
 		user,
 		initializing,
@@ -162,7 +183,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		registerBusiness,
 		refreshSession,
 		sendEmailVerification,
-		verifyEmailCode
+		verifyEmailCode,
+		sendPhoneVerification,
+		verifyPhoneCode
 	};
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

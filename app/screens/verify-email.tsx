@@ -65,17 +65,17 @@ export default function VerifyEmailScreen() {
       const res = await verifyEmailCode({ email, code: code.trim() });
 
       if (res?.message === "email_verified" || res?.user?.is_email_verified) {
+        const user = res?.user;
         const role = res?.user?.role;
-
         Alert.alert("Email verified", "Your email has been successfully verified.", [
           {
             text: "Continue",
             onPress: () => {
-              if (role === "business") {
-                router.replace("/(establishment)/dashboard");
-              } else {
-                router.replace("/(tabs)");
-              }
+              //after verifying email, go to phone verification next
+              router.replace({
+                pathname: "/screens/verify-phone",
+                params: { phone: user?.phone ?? "" },
+              });
             },
           },
         ]);

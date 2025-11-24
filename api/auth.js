@@ -36,3 +36,14 @@ export async function verifyEmail(payload) {
     //payload is email and code
     return post("/auth/verify-email", payload);
 }
+
+//send phone verification otp 
+export async function sendPhoneVerification(phone) {
+    return post("/auth/send-phone-verification", { phone });
+}
+
+// verify phone
+export async function verifyPhone(payload) {
+    // payload is phone and code 
+    return post("/auth/verify-phone", payload);
+}

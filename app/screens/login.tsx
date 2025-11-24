@@ -42,6 +42,19 @@ export default function LoginScreen() {
         return; // stop here, don't route to tabs/establishment yet
       }
 
+      //After email is verified, require phone verification
+      if (!user.is_phone_verified) {
+        Alert.alert(
+          "Verify your phone",
+          "Please verify your phone number to continue."
+        );
+        router.replace({
+          pathname: "/screens/verify-phone",
+          params: { phone: user.phone },
+        });
+        return;
+      }
+
       // Prefer business status from the response; fall back to context if needed
       const role = data?.user?.role ?? null;
       const businessStatus = data?.business?.status ?? null;
