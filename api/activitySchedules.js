@@ -1,7 +1,7 @@
-//rest wrapper for activities route
+// REST wrapper for activity_schedules routes
 import { get, post, put, del } from "./client";
 
-const base = "/api/activities";
+const base = "/api/activity-schedules";
 
 function appendQuery(path, params) {
   if (!params) return path;
@@ -16,27 +16,23 @@ function appendQuery(path, params) {
   return q ? `${path}?${q}` : path;
 }
 
-export function fetchActivities(params) {
-    return get(appendQuery(base, params));
+// GET /api/activity-schedules?activity_id=...
+export function fetchSchedulesByActivity(activityId, params = {}) {
+  const q = appendQuery(base, { activity_id: activityId, ...params });
+  return get(q);
 }
 
-export function fetchActivityById(id) {
-    return get(`${base}/${id}`);
+// POST /api/activity-schedules
+export function createSchedule(payload) {
+  return post(base, payload);
 }
 
-export function createActivity(payload) {
-    return post(base, payload);
-}
-
-export function updateActivity(id, payload) {
+// PUT /api/activity-schedules/:id
+export function updateSchedule(id, payload) {
   return put(`${base}/${id}`, payload);
 }
 
-export function deleteActivity(id) {
+// DELETE /api/activity-schedules/:id
+export function deleteSchedule(id) {
   return del(`${base}/${id}`);
 }
-
-// export function fetchSchedulesByActivity(activityId, params = {}) {
-//     const q = appendQuery("/api/activity_schedules", { activity_id: activityId, ...params });
-//     return get(q);
-// }

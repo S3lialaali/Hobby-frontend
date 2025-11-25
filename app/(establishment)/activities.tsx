@@ -1,81 +1,165 @@
-//reads user id from the token and fetches the establishment's activities
-import React, { useEffect, useState} from "react";
-import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, ScrollView, TextInput } from "react-native";
+// reads user id from the token and fetches the establishment's activities
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  TextInput,
+} from "react-native";
 import { useCurrentUser } from "@/sessions/useCurrentUser";
 import { fetchEstablishments } from "@/api/establishments";
-import { createActivity, fetchActivities, updateActivity, deleteActivity } from "@/api/activities";
+import {
+  createActivity,
+  fetchActivities,
+  updateActivity,
+  deleteActivity,
+} from "@/api/activities";
+import {
+  fetchSchedulesByActivity,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+} from "@/api/activitySchedules";
 
-type Establishment ={
+type Establishment = {
   id: number;
   name: string;
   status: string;
 };
 
-type Activity ={
+type Activity = {
   id: number;
   establishment_id: number;
   title?: string;
   name?: string;
   description?: string | null;
-  price?: number | null;
+  // price can come back from MySQL as string, but locally we treat it as number | null
+  price?: number | string | null;
 };
 
+type ActivitySchedule = {
+  id: number;
+  activity_id: number;
+  day_of_week: number; // 0..6
+  start_time: string; // "HH:MM:SS"
+  end_time?: string | null;
+  capacity?: number | null;
+  is_active: boolean | 0 | 1;
+};
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function to12h(hhmmss: string) {
+  if (!hhmmss) return "";
+  const parts = hhmmss.split(":");
+  if (parts.length < 2) return hhmmss;
+  const [H, M] = parts.map((v) => parseInt(v, 10));
+  if (!Number.isFinite(H) || !Number.isFinite(M)) return hhmmss;
+  const h12 = ((H % 12) || 12).toString();
+  const ampm = H < 12 ? "AM" : "PM";
+  return `${h12}:${String(M).padStart(2, "0")} ${ampm}`;
+}
+
 export default function EstablishmentActivities() {
-  //read user id and role from access token
+  // read user id and role from access token
   const { id: userId } = useCurrentUser();
 
-  //UI state
+  // UI state
   const [establishment, setEstablishment] = useState<Establishment | null>(null);
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [schedulesByActivity, setSchedulesByActivity] = useState<
+    Record<number, ActivitySchedule[]>
+  >({});
   const [error, setError] = useState<string | null>(null);
 
-  //add activity form states
+  // add activity form states
   const [creating, setCreating] = useState(false);
   const [addTitle, setAddTitle] = useState("");
   const [addDescription, setAddDescription] = useState("");
   const [addPrice, setAddPrice] = useState("");
 
-  //edit activity form states
+  // edit activity form states
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
 
-  //helper to load establishemtn and activites for this user
+  // schedule form states (one shared editor for whichever activity is selected)
+  const [scheduleFormActivityId, setScheduleFormActivityId] = useState<number | null>(null);
+  const [scheduleEditingId, setScheduleEditingId] = useState<number | null>(null);
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState<string>("");
+  const [scheduleStartTime, setScheduleStartTime] = useState("");
+  const [scheduleEndTime, setScheduleEndTime] = useState("");
+  const [scheduleCapacity, setScheduleCapacity] = useState("");
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+
+  const currentScheduleActivity = useMemo(
+    () =>
+      scheduleFormActivityId != null
+        ? activities.find((a) => a.id === scheduleFormActivityId) ?? null
+        : null,
+    [activities, scheduleFormActivityId]
+  );
+
   async function load() {
-    if(!userId) return;
+    if (!userId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      //1- fetch establishments
-      const establishment = await fetchEstablishments({ owner_user_id: userId});
-      //2-resolve the establishment id
-      const est = establishment?.[0];
-      
+      // 1) fetch establishments owned by this user
+      const establishmentList = await fetchEstablishments({
+        owner_user_id: userId,
+      });
+
+      // 2) resolve the establishment id (we currently assume one per business user)
+      const est = establishmentList?.[0];
+
       if (!est?.id) {
         setEstablishment(null);
         setActivities([]);
+        setSchedulesByActivity({});
         setError("No establishment yet");
         return;
       }
 
-      //snapsht for header
+      // snapshot for header
       setEstablishment({
         id: est.id,
         name: est.name,
-        status: est.status
+        status: est.status,
       });
 
-      //3-id id available, fetch activities
-      const activities = await fetchActivities({ 
+      // 3) if id is available, fetch activities
+      const acts = await fetchActivities({
         establishment_id: est.id,
-        order: "newest"});
-      setActivities(Array.isArray(activities) ? activities : []);
+        order: "newest",
+      });
+      const safeActs: Activity[] = Array.isArray(acts) ? acts : [];
+      setActivities(safeActs);
+
+      // 4) fetch schedules for each activity (business view)
+      const schedMap: Record<number, ActivitySchedule[]> = {};
+      await Promise.all(
+        safeActs.map(async (a) => {
+          try {
+            const slots = await fetchSchedulesByActivity(a.id);
+            schedMap[a.id] = Array.isArray(slots) ? (slots as ActivitySchedule[]) : [];
+          } catch (err) {
+            // if schedules endpoint fails, just treat as no schedules
+            schedMap[a.id] = [];
+          }
+        })
+      );
+      setSchedulesByActivity(schedMap);
     } catch (err) {
-      console.error("Error loading establishment activities, err");
+      console.error("Error loading establishment activities", err);
       setError("Could not load activities. Please try again.");
     } finally {
       setLoading(false);
@@ -83,11 +167,10 @@ export default function EstablishmentActivities() {
   }
 
   useEffect(() => {
-    //load user
     load();
   }, [userId]);
 
-  //Handle to create new activities
+  // Handle creating new activities
   async function handleAdd() {
     if (!establishment?.id) return;
 
@@ -97,7 +180,7 @@ export default function EstablishmentActivities() {
       return;
     }
 
-    //adding price (optional)
+    // price (optional)
     let price: number | null = null;
     if (addPrice.trim()) {
       const n = Number(addPrice.trim());
@@ -111,49 +194,49 @@ export default function EstablishmentActivities() {
     try {
       setCreating(true);
 
-      //payload should match backend
       const payload = {
         establishment_id: establishment.id,
-        title, 
+        title,
         description: addDescription.trim() || null,
         price,
       };
 
-      //call api/activities.js
       await createActivity(payload);
 
+      // reload to pick up new activities and their (empty) schedules
       await load();
 
-      //reset form
+      // reset form
       setAddTitle("");
       setAddDescription("");
       setAddPrice("");
     } catch (err) {
       console.error("Error creating activity", err);
-      Alert.alert("Error","Could not create activity. Please try again.");
+      Alert.alert("Error", "Could not create activity. Please try again.");
     } finally {
       setCreating(false);
     }
   }
 
-  //editing activity
+  // editing activity
   function startEdit(act: Activity) {
     setEditingId(act.id);
-    setEditTitle(act.title ?? act.name ?? "")
+    setEditTitle(act.title ?? act.name ?? "");
     setEditDescription(act.description ?? "");
-    setEditPrice(
-      typeof act.price === "number" && !Number.isNaN(act.price)
-      ? String(act.price) : ""
-    );
+    const p =
+      typeof act.price === "number" || typeof act.price === "string"
+        ? String(act.price)
+        : "";
+    setEditPrice(p);
   }
 
-  //Save edit changes to activities
+  // Save edit changes to activities
   async function handleSaveEdit() {
     if (!establishment?.id || editingId == null) return;
 
     const title = editTitle.trim();
     if (!title) {
-      Alert.alert("Missing title", "Please enter a title for the activity.")
+      Alert.alert("Missing title", "Please enter a title for the activity.");
       return;
     }
 
@@ -167,23 +250,26 @@ export default function EstablishmentActivities() {
       price = n;
     }
 
+    const payload = {
+      title,
+      description: editDescription.trim() || null,
+      price,
+    };
+
     try {
-      //patch object with only fields that we allow to be edited
-      const patch = {
+      await updateActivity(editingId, payload);
+
+      // Update local state without full reload
+      const patch: Partial<Activity> = {
         title,
-        description: editDescription.trim() || null,
+        description: payload.description,
         price,
       };
-
-      //call api/activities.js
-      await updateActivity(editingId, patch);
-
-      //update local state without reloading app
       setActivities((prev) =>
         prev.map((a) => (a.id === editingId ? { ...a, ...patch } : a))
       );
 
-      //reset edit state
+      // reset edit state
       setEditingId(null);
       setEditTitle("");
       setEditDescription("");
@@ -194,29 +280,41 @@ export default function EstablishmentActivities() {
     }
   }
 
-  //delete activity
+  // delete activity
   async function handleDelete(id: number) {
     Alert.alert(
-      "DElete activity", "Are you sure you want to delete this activity?",
+      "Delete activity",
+      "Are you sure you want to delete this activity?",
       [
-        { text: "Cancel", style: "cancel"},
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
             try {
-              //call delete function from api/activities
               await deleteActivity(id);
 
-              //remove from activities list without reloading app
+              // remove from activities list
               setActivities((prev) => prev.filter((a) => a.id !== id));
 
-              //if in middle of editing activity, then close the editing form
+              // drop any schedules we have cached for it
+              setSchedulesByActivity((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+
+              // if in middle of editing this activity, close the editing form
               if (editingId === id) {
                 setEditingId(null);
                 setEditTitle("");
                 setEditDescription("");
                 setEditPrice("");
+              }
+
+              // if schedule form is open for this activity, reset it
+              if (scheduleFormActivityId === id) {
+                resetScheduleForm();
               }
             } catch (err) {
               console.error("Error deleting activity", err);
@@ -228,176 +326,587 @@ export default function EstablishmentActivities() {
     );
   }
 
+  // ---- SCHEDULE HELPERS ----
+
+  function resetScheduleForm() {
+    setScheduleFormActivityId(null);
+    setScheduleEditingId(null);
+    setScheduleDayOfWeek("");
+    setScheduleStartTime("");
+    setScheduleEndTime("");
+    setScheduleCapacity("");
+  }
+
+  function openCreateSchedule(activityId: number) {
+    setScheduleFormActivityId(activityId);
+    setScheduleEditingId(null);
+    setScheduleDayOfWeek("");
+    setScheduleStartTime("");
+    setScheduleEndTime("");
+    setScheduleCapacity("");
+  }
+
+  function startEditSchedule(activityId: number, slot: ActivitySchedule) {
+    setScheduleFormActivityId(activityId);
+    setScheduleEditingId(slot.id);
+    setScheduleDayOfWeek(String(slot.day_of_week));
+    setScheduleStartTime(slot.start_time?.slice(0, 5) ?? "");
+    setScheduleEndTime(slot.end_time ? slot.end_time.slice(0, 5) : "");
+    setScheduleCapacity(
+      slot.capacity !== null && slot.capacity !== undefined
+        ? String(slot.capacity)
+        : ""
+    );
+  }
+
+  function isValidTimeString(t: string) {
+  const m = /^(\d{2}):(\d{2})$/.exec(t.trim());
+  if (!m) return false;
+
+  const hour = parseInt(m[1], 10);
+  const minute = parseInt(m[2], 10);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
+
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+
+
+  async function handleSaveSchedule() {
+    if (!scheduleFormActivityId) return;
+
+    const dow = scheduleDayOfWeek.trim();
+    if (!dow) {
+      Alert.alert("Missing day", "Please choose a day of the week.");
+      return;
+    }
+
+    const dayNum = Number(dow);
+    if (!Number.isInteger(dayNum) || dayNum < 0 || dayNum > 6) {
+      Alert.alert("Invalid day", "Day must be between Sunday and Saturday.");
+      return;
+    }
+
+    const start = scheduleStartTime.trim();
+    const end = scheduleEndTime.trim();
+    
+    if (!isValidTimeString(start)) {
+      Alert.alert(
+        "Invalid time",
+        "Start time must be between 00:00 and 23:59 in HH:MM format (e.g. 18:30)."
+      );
+      return;
+    }
+
+    if (end && !isValidTimeString(end)) {
+      Alert.alert(
+        "Invalid time",
+        "End time must be between 00:00 and 23:59 in HH:MM format (e.g. 19:30), or left empty."
+      );
+      return;
+    }
+
+    let cap: number | null = null;
+    if (scheduleCapacity.trim()) {
+      const n = Number(scheduleCapacity.trim());
+      if (!Number.isFinite(n) || n < 1) {
+        Alert.alert(
+          "Invalid capacity",
+          "Capacity must be a positive whole number."
+        );
+        return;
+      }
+      cap = n;
+    }
+
+    const payload = {
+      activity_id: scheduleFormActivityId,
+      day_of_week: dayNum,
+      start_time: start,
+      end_time: end || null,
+      capacity: cap,
+      is_active: true,
+    };
+
+    try {
+      setScheduleSaving(true);
+
+      if (scheduleEditingId) {
+        const updated = await updateSchedule(scheduleEditingId, {
+          day_of_week: payload.day_of_week,
+          start_time: payload.start_time,
+          end_time: payload.end_time,
+          capacity: payload.capacity,
+          is_active: true,
+        });
+
+        setSchedulesByActivity((prev) => {
+          const list = prev[scheduleFormActivityId] ?? [];
+          return {
+            ...prev,
+            [scheduleFormActivityId]: list.map((s) =>
+              s.id === scheduleEditingId ? (updated as ActivitySchedule) : s
+            ),
+          };
+        });
+      } else {
+        const created = await createSchedule(payload);
+        setSchedulesByActivity((prev) => {
+          const list = prev[scheduleFormActivityId] ?? [];
+          const next = [...list, created as ActivitySchedule];
+          next.sort(
+            (a, b) =>
+              a.day_of_week - b.day_of_week ||
+              a.start_time.localeCompare(b.start_time)
+          );
+          return { ...prev, [scheduleFormActivityId]: next };
+        });
+      }
+
+      resetScheduleForm();
+    } catch (err) {
+      console.error("Error saving schedule", err);
+      Alert.alert(
+        "Error",
+        scheduleEditingId
+          ? "Could not update schedule. Please try again."
+          : "Could not create schedule. Please try again."
+      );
+    } finally {
+      setScheduleSaving(false);
+    }
+  }
+
+  function confirmDeleteSchedule(activityId: number, scheduleId: number) {
+    Alert.alert(
+      "Delete schedule",
+      "Are you sure you want to delete this schedule slot?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDeleteSchedule(activityId, scheduleId),
+        },
+      ]
+    );
+  }
+
+  async function handleDeleteSchedule(activityId: number, scheduleId: number) {
+    try {
+      await deleteSchedule(scheduleId);
+      setSchedulesByActivity((prev) => ({
+        ...prev,
+        [activityId]: (prev[activityId] ?? []).filter(
+          (s) => s.id !== scheduleId
+        ),
+      }));
+      if (scheduleEditingId === scheduleId) {
+        resetScheduleForm();
+      }
+    } catch (err) {
+      console.error("Error deleting schedule", err);
+      Alert.alert(
+        "Error",
+        "Could not delete schedule. It may have existing bookings."
+      );
+    }
+  }
+
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View className="flex-1 items-center justify-center bg-slate-50">
         <ActivityIndicator />
-        <Text className="mt-2">Loading...</Text>
+        <Text className="mt-2 text-gray-600">Loading activities...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1 items-center justify-center p-4">
+      <View className="flex-1 items-center justify-center p-4 bg-slate-50">
         <Text className="text-center text-red-500">{error}</Text>
       </View>
     );
   }
 
-   // Safety guard – should not normally happen if establishment exists
   if (!establishment) {
     return (
-      <View className="flex-1 items-center justify-center p-4">
-        <Text className="text-center">
-          You don't have an establishment yet. Create one first.
+      <View className="flex-1 items-center justify-center p-4 bg-slate-50">
+        <Text className="text-center text-gray-600">
+          You do not have an establishment yet.
         </Text>
       </View>
     );
   }
 
-   return (
-    <ScrollView className="flex-1 p-4">
-      {/* Header showing which establishment this dashboard is for */}
-      <Text className="text-xl font-bold mb-2">Activities</Text>
-      <Text className="text-sm text-gray-500 mb-4">
-        Establishment:{" "}
-        <Text className="font-semibold">{establishment.name}</Text>{" "}
-        ({establishment.status})
-      </Text>
+  return (
+    <ScrollView className="flex-1 bg-slate-50">
+      <View className="px-4 py-4">
+        {/* Header showing which establishment this dashboard is for */}
+        <Text className="text-[22px] font-extrabold text-gray-900">
+          Activities & schedules
+        </Text>
+        <Text className="mt-1 text-[13px] text-gray-500">
+          Create activities and manage the time slots your customers can book.
+        </Text>
 
-      {/* Create new activity form */}
-      <View className="mb-6 p-3 rounded-2xl border border-gray-200">
-        <Text className="font-semibold mb-2">Add new activity</Text>
+        <View className="mt-4 p-3 rounded-2xl bg-white border border-gray-200 flex-row items-center justify-between">
+          <View className="flex-1 mr-3">
+            <Text
+              className="text-[14px] font-semibold text-gray-900"
+              numberOfLines={1}
+            >
+              {establishment.name}
+            </Text>
+            <Text className="text-[12px] text-gray-500 mt-[2px]">
+              Business account
+            </Text>
+          </View>
+          <View
+            className={`px-3 py-[4px] rounded-full ${
+              establishment.status === "approved"
+                ? "bg-emerald-500"
+                : establishment.status === "rejected"
+                ? "bg-rose-500"
+                : "bg-amber-500"
+            }`}
+          >
+            <Text className="text-[11px] font-semibold text-white uppercase">
+              {establishment.status}
+            </Text>
+          </View>
+        </View>
 
-        <TextInput
-          className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
-          placeholder="Title *"
-          value={addTitle}
-          onChangeText={setAddTitle}
-        />
-
-        <TextInput
-          className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
-          placeholder="Description"
-          value={addDescription}
-          onChangeText={setAddDescription}
-          multiline
-        />
-
-        <TextInput
-          className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
-          placeholder="Price (optional, BHD)"
-          keyboardType="numeric"
-          value={addPrice}
-          onChangeText={setAddPrice}
-        />
-
-        <TouchableOpacity
-          onPress={handleAdd}
-          disabled={creating}
-          className="mt-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
-        >
-          {creating ? (
-            <ActivityIndicator />
-          ) : (
-            <Text className="text-white font-semibold">Create activity</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Edit existing activity form (only visible when editingId is set) */}
-      {editingId != null && (
-        <View className="mb-6 p-3 rounded-2xl border border-amber-400 bg-amber-50">
-          <Text className="font-semibold mb-2">Edit activity</Text>
+        {/* Create new activity form */}
+        <View className="mt-6 mb-4 p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+          <Text className="font-semibold text-gray-900 mb-1">
+            Add new activity
+          </Text>
+          <Text className="text-[12px] text-gray-500 mb-3">
+            Give your activity a clear title and optional description and price.
+          </Text>
 
           <TextInput
-            className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+            className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
             placeholder="Title *"
-            value={editTitle}
-            onChangeText={setEditTitle}
+            value={addTitle}
+            onChangeText={setAddTitle}
           />
 
           <TextInput
-            className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+            className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
             placeholder="Description"
-            value={editDescription}
-            onChangeText={setEditDescription}
+            value={addDescription}
+            onChangeText={setAddDescription}
             multiline
           />
 
           <TextInput
-            className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+            className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
             placeholder="Price (optional, BHD)"
             keyboardType="numeric"
-            value={editPrice}
-            onChangeText={setEditPrice}
+            value={addPrice}
+            onChangeText={setAddPrice}
           />
 
-          <View className="flex-row gap-4 mt-1">
-            <TouchableOpacity
-              onPress={handleSaveEdit}
-              className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
-            >
-              <Text className="text-white font-semibold">Save changes</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setEditingId(null);
-                setEditTitle("");
-                setEditDescription("");
-                setEditPrice("");
-              }}
-              className="flex-1 rounded-2xl border border-gray-400 px-4 py-2 items-center justify-center"
-            >
-              <Text className="text-gray-700 font-semibold">Cancel</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={handleAdd}
+            disabled={creating}
+            className="mt-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+          >
+            {creating ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text className="text-white font-semibold">Create activity</Text>
+            )}
+          </TouchableOpacity>
         </View>
-      )}
 
-      {/* List of existing activities for this establishment */}
-      <FlatList
-        data={activities}
-        keyExtractor={(item) => String(item.id)}
-        scrollEnabled={false} // we scroll the outer ScrollView instead
-        ListEmptyComponent={
-          <Text className="text-gray-500">
-            You have no activities yet. Add one above to get started.
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <View className="mb-3 p-3 rounded-2xl border border-gray-200">
-            <Text className="font-semibold">
-              {item.title ?? item.name ?? "Untitled activity"}
+        {/* Edit existing activity form (only visible when editingId is set) */}
+        {editingId != null && (
+          <View className="mb-4 p-4 rounded-2xl border border-amber-300 bg-amber-50">
+            <Text className="font-semibold mb-2 text-amber-900">
+              Edit activity
             </Text>
 
-            {item.description ? (
-              <Text className="text-gray-500 mt-1">{item.description}</Text>
-            ) : null}
+            <TextInput
+              className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+              placeholder="Title *"
+              value={editTitle}
+              onChangeText={setEditTitle}
+            />
 
-            {/* Price: handle both string (from MySQL) and number (from local state) */}
-            {item.price !== null &&
-              item.price !== undefined &&
-              String(item.price) !== "" && (
-                <Text className="text-gray-500 mt-1">
-                  Price: {item.price} BHD
-                </Text>
-              )}
+            <TextInput
+              className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+              placeholder="Description"
+              value={editDescription}
+              onChangeText={setEditDescription}
+              multiline
+            />
 
-            <View className="flex-row gap-4 mt-2">
-              <TouchableOpacity onPress={() => startEdit(item)}>
-                <Text className="text-blue-600 font-semibold">Edit</Text>
+            <TextInput
+              className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+              placeholder="Price (optional, BHD)"
+              keyboardType="numeric"
+              value={editPrice}
+              onChangeText={setEditPrice}
+            />
+
+            <View className="flex-row gap-4 mt-1">
+              <TouchableOpacity
+                onPress={handleSaveEdit}
+                className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+              >
+                <Text className="text-white font-semibold">Save changes</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Text className="text-red-600 font-semibold">Delete</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingId(null);
+                  setEditTitle("");
+                  setEditDescription("");
+                  setEditPrice("");
+                }}
+                className="flex-1 rounded-2xl border border-gray-300 px-4 py-2 items-center justify-center"
+              >
+                <Text className="text-gray-700 font-semibold">Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
-      />
+
+        {/* Schedule editor card */}
+        {scheduleFormActivityId != null && (
+          <View className="mb-5 p-4 rounded-2xl border border-indigo-300 bg-indigo-50">
+            <Text className="font-semibold text-gray-900 mb-1">
+              {scheduleEditingId ? "Edit schedule" : "Add schedule"}
+            </Text>
+            <Text className="text-[12px] text-gray-600 mb-3">
+              {currentScheduleActivity
+                ? `For activity: ${
+                    currentScheduleActivity.title ??
+                    currentScheduleActivity.name ??
+                    "Untitled activity"
+                  }`
+                : "Select an activity below to manage its schedules."}
+            </Text>
+
+            <Text className="text-[12px] font-medium text-gray-800 mb-1">
+              Day of week
+            </Text>
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              {DAY_LABELS.map((label, index) => {
+                const selected = String(index) === scheduleDayOfWeek;
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    onPress={() => setScheduleDayOfWeek(String(index))}
+                    className={`px-3 py-[6px] rounded-full border ${
+                      selected
+                        ? "bg-blue-600 border-blue-600"
+                        : "bg-white border-gray-300"
+                    }`}
+                  >
+                    <Text
+                      className={`text-[12px] font-semibold ${
+                        selected ? "text-white" : "text-gray-800"
+                      }`}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Text className="text-[12px] font-medium text-gray-800 mb-1">
+                  Start time
+                </Text>
+                <TextInput
+                  className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                  placeholder="HH:MM (24h)"
+                  value={scheduleStartTime}
+                  onChangeText={setScheduleStartTime}
+                />
+              </View>
+
+              <View className="flex-1">
+                <Text className="text-[12px] font-medium text-gray-800 mb-1">
+                  End time (optional)
+                </Text>
+                <TextInput
+                  className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                  placeholder="HH:MM"
+                  value={scheduleEndTime}
+                  onChangeText={setScheduleEndTime}
+                />
+              </View>
+            </View>
+
+            <View className="mt-3">
+              <Text className="text-[12px] font-medium text-gray-800 mb-1">
+                Capacity (optional)
+              </Text>
+              <TextInput
+                className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                placeholder="e.g. 10"
+                keyboardType="numeric"
+                value={scheduleCapacity}
+                onChangeText={setScheduleCapacity}
+              />
+            </View>
+
+            <View className="flex-row gap-4 mt-4">
+              <TouchableOpacity
+                onPress={handleSaveSchedule}
+                disabled={scheduleSaving}
+                className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+              >
+                {scheduleSaving ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text className="text-white font-semibold">
+                    {scheduleEditingId ? "Save changes" : "Add schedule"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={resetScheduleForm}
+                disabled={scheduleSaving}
+                className="flex-1 rounded-2xl border border-gray-300 px-4 py-2 items-center justify-center"
+              >
+                <Text className="text-gray-700 font-semibold">Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Activities list */}
+        <View className="mt-2">
+          <Text className="text-[14px] font-semibold text-gray-900 mb-2">
+            Existing activities
+          </Text>
+
+          <FlatList
+            data={activities}
+            keyExtractor={(item) => String(item.id)}
+            scrollEnabled={false} // we scroll the outer ScrollView instead
+            ListEmptyComponent={
+              <Text className="text-gray-500">
+                You have no activities yet. Add one above to get started.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const slots = schedulesByActivity[item.id] ?? [];
+              return (
+                <View className="mb-3 p-3 rounded-2xl bg-white border border-gray-200 shadow-sm">
+                  <Text className="font-semibold text-gray-900">
+                    {item.title ?? item.name ?? "Untitled activity"}
+                  </Text>
+
+                  {item.description ? (
+                    <Text className="text-gray-500 mt-1">
+                      {item.description}
+                    </Text>
+                  ) : null}
+
+                  {/* Price: handle both string (from MySQL) and number (from local state) */}
+                  {item.price !== null &&
+                    item.price !== undefined &&
+                    String(item.price) !== "" && (
+                      <Text className="text-gray-500 mt-1">
+                        Price: {item.price} BHD
+                      </Text>
+                    )}
+
+                  {/* Schedules */}
+                  <View className="mt-3 border-t border-gray-100 pt-2">
+                    <View className="flex-row items-center justify-between mb-1">
+                      <Text className="text-[13px] font-semibold text-gray-800">
+                        Schedules
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          scheduleFormActivityId === item.id
+                            ? resetScheduleForm()
+                            : openCreateSchedule(item.id)
+                        }
+                        className="px-3 py-[4px] rounded-full bg-blue-50"
+                      >
+                        <Text className="text-[12px] font-semibold text-blue-600">
+                          {scheduleFormActivityId === item.id
+                            ? "Close"
+                            : "Add / edit"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {slots.length ? (
+                      slots.map((s) => (
+                        <View
+                          key={s.id}
+                          className="flex-row items-center justify-between mt-1"
+                        >
+                          <Text className="text-[12px] text-gray-700">
+                            {DAY_LABELS[s.day_of_week]} •{" "}
+                            {to12h(s.start_time)}
+                            {s.capacity
+                              ? ` • ${s.capacity} ${
+                                  s.capacity === 1 ? "spot" : "spots"
+                                }`
+                              : ""}
+                          </Text>
+                          <View className="flex-row gap-3">
+                            <TouchableOpacity
+                              onPress={() =>
+                                startEditSchedule(item.id, s)
+                              }
+                            >
+                              <Text className="text-[12px] font-semibold text-blue-600">
+                                Edit
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() =>
+                                confirmDeleteSchedule(item.id, s.id)
+                              }
+                            >
+                              <Text className="text-[12px] font-semibold text-red-500">
+                                Delete
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text className="text-[12px] text-gray-400">
+                        No schedules yet. Add one for this activity.
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Activity edit/delete buttons */}
+                  <View className="flex-row gap-4 mt-3">
+                    <TouchableOpacity onPress={() => startEdit(item)}>
+                      <Text className="text-blue-600 font-semibold">Edit</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                      <Text className="text-red-600 font-semibold">
+                        Delete
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        </View>
+      </View>
     </ScrollView>
   );
 }
