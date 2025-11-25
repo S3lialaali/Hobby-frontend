@@ -30,3 +30,7 @@ export function createBooking(payload) {
 export function updateBooking(id, body) {
    return patch(`${base}/${id}`, body);
 }
+
+export function fetchBusinessBookingSlots(params) {
+  return get(appendQuery(`${base}/business/slots`, params));
+}

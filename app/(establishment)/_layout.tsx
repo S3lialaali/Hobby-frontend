@@ -3,6 +3,12 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, Pressable, Text, StyleSheet, Platform } from "react-native";
 import { useCurrentUser } from "../../sessions/useCurrentUser.js";
 
+const colors = {
+  primary_orange: '#FFC067',
+  secondary_purple: '#7C3AED',
+  accent_teal: '#67F2FF',
+};
+
 export default function EstablishmentLayout() {
     //read the role of the user from the jwt
     const { role } = useCurrentUser();
@@ -32,7 +38,7 @@ export default function EstablishmentLayout() {
         <View style={{ flex: 1 }}>
             <Tabs
                 screenOptions={{
-                    headerShown: true,
+                    headerShown: false,
                     // place the back button inside the header for all tabs
                     headerLeft: () => (
                         <Pressable
@@ -52,6 +58,7 @@ export default function EstablishmentLayout() {
             <Tabs.Screen name = "instructors" options={{title: "Instructors"}} />
             {/*Account management*/}
             <Tabs.Screen name = "account" options={{title: "Account"}}/>
+            <Tabs.Screen name = "bookings" options={{title: "Bookings"}}/>
         </Tabs>
         </View>
     );
