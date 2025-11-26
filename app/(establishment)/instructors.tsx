@@ -1,9 +1,12 @@
 //reads user id from token and fetches instructors of the establishments
 import React, { use, useEffect, useState} from "react";
-import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, ScrollView, TextInput } from "react-native";
+import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, ScrollView, TextInput, Image } from "react-native";
 import { useCurrentUser } from "@/sessions/useCurrentUser";
 import { fetchEstablishments } from "@/api/establishments";
 import { fetchInstructors, deleteInstructor, createInstructor, updateInstructor } from "@/api/instructors";
+import * as ImagePicker from "expo-image-picker";
+import { uploadInstructorImage } from "@/api/uploads";
+import { API_BASE_URL } from "@/api/client";
 
 //estabishment shape for header
 type Establishment = {
@@ -20,7 +23,17 @@ type Instructor = {
   bio?: string | null;
   phone?: string | null;
   email?: string | null;
+  profile_picture?: string | null;
 };
+
+function getImageUrl(path?: string | null): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  return `${API_BASE_URL}/images/${path}`;
+}
+
 
 export default function EstablishmentInstructors() {
   const { id: userId } = useCurrentUser();
@@ -36,6 +49,8 @@ export default function EstablishmentInstructors() {
   const [addBio, setAddBio] = useState("");
   const [addPhone, setAddPhone] = useState("");
   const [addEmail, setAddEmail] = useState("");
+  const [addImage, setAddImage] = useState<{ uri: string } | null>(null);
+  const [changingInstructorImageId, setChangingInstructorImageId] = useState<number | null>(null); 
 
   //edit instructor for state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -43,6 +58,71 @@ export default function EstablishmentInstructors() {
   const [editBio, setEditBio] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
+
+  async function handlePickAddImage() {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "We need access to your photos to select an instructor image.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets && result.assets[0];
+      if (asset?.uri) {
+        setAddImage({ uri: asset.uri });
+      }
+    } catch (err) {
+      console.warn("Image pick error", err);
+      Alert.alert("Image error", "Could not open the image library. Please try again.");
+    }
+  }
+
+  async function handleChangeInstructorImage(instructorId: number) {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "We need access to your photos to change the instructor image."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets && result.assets[0];
+      if (!asset?.uri) return;
+
+      setChangingInstructorImageId(instructorId);
+
+      try {
+        await uploadInstructorImage(instructorId, asset.uri);
+        await load();
+      } catch (err) {
+        console.error("Error changing instructor image", err);
+        Alert.alert(
+          "Image upload failed",
+          "The instructor was updated, but we could not change their image."
+        );
+      } finally {
+        setChangingInstructorImageId(null);
+      }
+    } catch (err) {
+      console.warn("Image picker error", err);
+      Alert.alert("Error", "Could not open the image library. Please try again.");
+    }
+  }
+
 
   //load establishment and its instructors
   async function load() {
@@ -106,7 +186,17 @@ export default function EstablishmentInstructors() {
       };
 
       // call funciton from /api/instructors
-      await createInstructor(payload);
+      const created = await createInstructor(payload);
+
+      //optional image upload
+      if (created?.id && addImage?.uri) {
+        try {
+          await uploadInstructorImage(created.id, addImage.uri);
+        } catch (err) {
+          console.error("Error uploading instructor image", err);
+          Alert.alert("Image upload error", "Instructor created but image upload failed.");
+        }
+      } 
 
       //reload list to sync data
       await load();
@@ -248,6 +338,26 @@ export default function EstablishmentInstructors() {
       <View className="mb-6 p-3 rounded-2xl border border-gray-200">
         <Text className="font-semibold mb-2">Add new instructor</Text>
 
+      {/* Instructor image (optional) */}
+      <Text className="font-semibold mt-1 mb-2">Instructor image (optional)</Text>
+      <View className="flex-row items-center mb-2">
+          <TouchableOpacity
+            onPress={handlePickAddImage}
+            className="px-4 py-2 rounded-2xl bg-purple-600"
+          >
+            <Text className="text-white text-sm font-semibold">Choose image</Text>
+          </TouchableOpacity>
+
+          {addImage ? (
+            <Image
+              source={{ uri: addImage.uri }}
+              className="w-12 h-12 rounded-full ml-3"
+            />
+          ) : (
+            <Text className="ml-3 text-xs text-gray-500">No image selected</Text>
+          )}
+        </View>
+
         <TextInput
           className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
           placeholder="Name *"
@@ -282,7 +392,7 @@ export default function EstablishmentInstructors() {
         <TouchableOpacity
           onPress={handleAdd}
           disabled={adding}
-          className="mt-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+          className="mt-1 rounded-2xl bg-purple-600 px-4 py-2 items-center justify-center"
         >
           {adding ? (
             <ActivityIndicator />
@@ -294,7 +404,7 @@ export default function EstablishmentInstructors() {
 
       {/* Edit instructor form (visible when editingId is set) */}
       {editingId != null && (
-        <View className="mb-6 p-3 rounded-2xl border border-amber-400 bg-amber-50">
+        <View className="mb-6 p-3 rounded-2xl border border-purple-400 bg-purple-50">
           <Text className="font-semibold mb-2">Edit instructor</Text>
 
           <TextInput
@@ -331,7 +441,7 @@ export default function EstablishmentInstructors() {
           <View className="flex-row gap-4 mt-1">
             <TouchableOpacity
               onPress={handleSaveEdit}
-              className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+              className="flex-1 rounded-2xl bg-purple-600 px-4 py-2 items-center justify-center"
             >
               <Text className="text-white font-semibold">Save changes</Text>
             </TouchableOpacity>
@@ -352,44 +462,63 @@ export default function EstablishmentInstructors() {
         </View>
       )}
 
-      {/* List of instructors */}
-      <FlatList
-        data={instructors}
-        keyExtractor={(item) => String(item.id)}
-        scrollEnabled={false}
-        ListEmptyComponent={
-          <Text className="text-gray-500">
-            You have no instructors yet. Add one above to get started.
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <View className="mb-3 p-3 rounded-2xl border border-gray-200">
-            <Text className="font-semibold">{item.name}</Text>
+        {/* List of instructors */}
+        <FlatList
+          data={instructors}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item }) => {
+            const avatarUri = getImageUrl(item.profile_picture);
 
-            {item.bio ? (
-              <Text className="text-gray-500 mt-1">{item.bio}</Text>
-            ) : null}
+            return (
+              <View className="mb-3 p-3 rounded-2xl border border-gray-200 bg-white">
+                <View className="flex-row items-center">
+                  <Image
+                    source={
+                      avatarUri
+                        ? { uri: avatarUri }
+                        : require("../../assets/images/instructors/profile_placeholder.jpeg") // optional if you have one
+                    }
+                    className="w-12 h-12 rounded-full mr-3"
+                  />
+                  <View className="flex-1">
+                    <Text className="font-semibold text-gray-900">{item.name}</Text>
 
-            {(item.phone || item.email) && (
-              <Text className="text-gray-500 mt-1">
-                {item.phone ? item.phone : ""}
-                {item.phone && item.email ? " · " : ""}
-                {item.email ? item.email : ""}
-              </Text>
-            )}
+                    {item.bio ? (
+                      <Text className="text-[12px] text-gray-500 mt-[2px]">
+                        {item.bio}
+                      </Text>
+                    ) : null}
 
-            <View className="flex-row gap-4 mt-2">
-              <TouchableOpacity onPress={() => startEdit(item)}>
-                <Text className="text-blue-600 font-semibold">Edit</Text>
-              </TouchableOpacity>
+                    {(item.phone || item.email) && (
+                      <Text className="text-[12px] text-gray-500 mt-[2px]">
+                        {item.phone ? item.phone : ""}
+                        {item.phone && item.email ? " · " : ""}
+                        {item.email ? item.email : ""}
+                      </Text>
+                    )}
+                  </View>
+                </View>
 
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Text className="text-red-600 font-semibold">Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
+                <View className="flex-row flex-wrap items-center gap-4 mt-2">
+                  <TouchableOpacity onPress={() => handleChangeInstructorImage(item.id)}>
+                    <Text className="text-[12px] font-semibold text-purple-600">
+                      {changingInstructorImageId === item.id ? "Changing image..." : "Change image"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => startEdit(item)}>
+                    <Text className="text-[12px] font-semibold text-purple-600">Edit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                    <Text className="text-[12px] font-semibold text-red-600">Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          }}
+        />
     </ScrollView>
   );
 }

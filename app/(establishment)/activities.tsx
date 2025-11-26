@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollView,
   TextInput,
+  Image
 } from "react-native";
 import { useCurrentUser } from "@/sessions/useCurrentUser";
 import { fetchEstablishments } from "@/api/establishments";
@@ -24,6 +25,9 @@ import {
   updateSchedule,
   deleteSchedule,
 } from "@/api/activitySchedules";
+import * as ImagePicker from "expo-image-picker";
+import { uploadActivityImage } from "@/api/uploads";
+import { API_BASE_URL } from "@/api/client";
 
 type Establishment = {
   id: number;
@@ -64,6 +68,22 @@ function to12h(hhmmss: string) {
   return `${h12}:${String(M).padStart(2, "0")} ${ampm}`;
 }
 
+function getActivityMainImageUrl(item: any): string | null {
+  const candidate =
+    item?.main_image ||
+    item?.image_url ||
+    (Array.isArray(item?.images) && item.images[0]?.url) ||
+    null;
+
+  if (!candidate) return null;
+  if (typeof candidate !== "string") return null;
+
+  if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+    return candidate;
+  }
+  return `${API_BASE_URL}/images/${candidate}`;
+}
+
 export default function EstablishmentActivities() {
   // read user id and role from access token
   const { id: userId } = useCurrentUser();
@@ -82,6 +102,8 @@ export default function EstablishmentActivities() {
   const [addTitle, setAddTitle] = useState("");
   const [addDescription, setAddDescription] = useState("");
   const [addPrice, setAddPrice] = useState("");
+  const [addImage, setAddImage] = useState<{ uri: string } | null>(null);
+  const [changingActivityImageId, setChangingActivityImageId] = useState<number | null>(null);
 
   // edit activity form states
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -105,6 +127,70 @@ export default function EstablishmentActivities() {
         : null,
     [activities, scheduleFormActivityId]
   );
+
+  async function handlePickAddImage() {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "We need access to your photos to select an activity image.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets && result.assets[0];
+      if (asset?.uri) {
+        setAddImage({ uri: asset.uri });
+      }
+    } catch (err) {
+      console.warn("Image pick error", err);
+      Alert.alert("Image error", "Could not open the image library. Please try again.");
+    }
+  }
+
+  async function handleChangeActivityImage(activityId: number) {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "We need access to your photos to change the activity image."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets && result.assets[0];
+      if (!asset?.uri) return;
+
+      setChangingActivityImageId(activityId);
+
+      try {
+        await uploadActivityImage(activityId, asset.uri);
+        await load(); // ⬅️ reuse your existing reload function
+      } catch (err) {
+        console.error("Error changing activity image", err);
+        Alert.alert(
+          "Image upload failed",
+          "Could not update the activity image. Please try again."
+        );
+      } finally {
+        setChangingActivityImageId(null);
+      }
+    } catch (err) {
+      console.warn("Image picker error", err);
+      Alert.alert("Error", "Could not open the image library. Please try again.");
+    }
+  }
 
   async function load() {
     if (!userId) return;
@@ -173,6 +259,11 @@ export default function EstablishmentActivities() {
   // Handle creating new activities
   async function handleAdd() {
     if (!establishment?.id) return;
+    if (!addImage) {
+      Alert.alert("Image required", "Please select an image for this activity.");
+      return;
+    }
+
 
     const title = addTitle.trim();
     if (!title) {
@@ -194,6 +285,7 @@ export default function EstablishmentActivities() {
     try {
       setCreating(true);
 
+      //payload should match backend
       const payload = {
         establishment_id: establishment.id,
         title,
@@ -201,15 +293,29 @@ export default function EstablishmentActivities() {
         price,
       };
 
-      await createActivity(payload);
+      // create activity and get its id
+      const created = await createActivity(payload);
 
-      // reload to pick up new activities and their (empty) schedules
+      // upload main image (one per activity at UI level)
+      if (created?.id && addImage?.uri) {
+        try {
+          await uploadActivityImage(created.id, addImage.uri);
+        } catch (uploadErr) {
+          console.error("Error uploading activity image", uploadErr);
+          Alert.alert(
+            "Image upload failed",
+            "The activity was created, but we could not upload its image. You can try again later."
+          );
+        }
+      }
+
       await load();
 
-      // reset form
+      //reset form
       setAddTitle("");
       setAddDescription("");
       setAddPrice("");
+      setAddImage(null);
     } catch (err) {
       console.error("Error creating activity", err);
       Alert.alert("Error", "Could not create activity. Please try again.");
@@ -566,10 +672,10 @@ export default function EstablishmentActivities() {
           <View
             className={`px-3 py-[4px] rounded-full ${
               establishment.status === "approved"
-                ? "bg-emerald-500"
+                ? "bg-green-500"
                 : establishment.status === "rejected"
-                ? "bg-rose-500"
-                : "bg-amber-500"
+                ? "bg-red-500"
+                : "bg-yellow-500"
             }`}
           >
             <Text className="text-[11px] font-semibold text-white uppercase">
@@ -586,6 +692,26 @@ export default function EstablishmentActivities() {
           <Text className="text-[12px] text-gray-500 mb-3">
             Give your activity a clear title and optional description and price.
           </Text>
+
+          {/* Activity image (required) */}
+          <Text className="font-semibold mt-1 mb-2">Activity image *</Text>
+          <View className="flex-row items-center mb-2">
+            <TouchableOpacity
+              onPress={handlePickAddImage}
+              className="px-4 py-2 rounded-2xl bg-purple-600"
+            >
+              <Text className="text-white text-sm font-semibold">Choose image</Text>
+            </TouchableOpacity>
+
+            {addImage ? (
+              <Image
+                source={{ uri: addImage.uri }}
+                className="w-16 h-16 rounded-xl ml-3"
+              />
+            ) : (
+              <Text className="ml-3 text-xs text-gray-500">No image selected</Text>
+            )}
+          </View>
 
           <TextInput
             className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
@@ -613,7 +739,7 @@ export default function EstablishmentActivities() {
           <TouchableOpacity
             onPress={handleAdd}
             disabled={creating}
-            className="mt-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+            className="mt-1 rounded-2xl bg-purple-600 px-4 py-2 items-center justify-center"
           >
             {creating ? (
               <ActivityIndicator color="#ffffff" />
@@ -656,7 +782,7 @@ export default function EstablishmentActivities() {
             <View className="flex-row gap-4 mt-1">
               <TouchableOpacity
                 onPress={handleSaveEdit}
-                className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+                className="flex-1 rounded-2xl bg-purple-600 px-4 py-2 items-center justify-center"
               >
                 <Text className="text-white font-semibold">Save changes</Text>
               </TouchableOpacity>
@@ -678,7 +804,7 @@ export default function EstablishmentActivities() {
 
         {/* Schedule editor card */}
         {scheduleFormActivityId != null && (
-          <View className="mb-5 p-4 rounded-2xl border border-indigo-300 bg-indigo-50">
+          <View className="mb-5 p-4 rounded-2xl border border-purple-300 bg-purple-50">
             <Text className="font-semibold text-gray-900 mb-1">
               {scheduleEditingId ? "Edit schedule" : "Add schedule"}
             </Text>
@@ -704,7 +830,7 @@ export default function EstablishmentActivities() {
                     onPress={() => setScheduleDayOfWeek(String(index))}
                     className={`px-3 py-[6px] rounded-full border ${
                       selected
-                        ? "bg-blue-600 border-blue-600"
+                        ? "bg-purple-600 border-purple-600"
                         : "bg-white border-gray-300"
                     }`}
                   >
@@ -763,7 +889,7 @@ export default function EstablishmentActivities() {
               <TouchableOpacity
                 onPress={handleSaveSchedule}
                 disabled={scheduleSaving}
-                className="flex-1 rounded-2xl bg-blue-600 px-4 py-2 items-center justify-center"
+                className="flex-1 rounded-2xl bg-purple-600 px-4 py-2 items-center justify-center"
               >
                 {scheduleSaving ? (
                   <ActivityIndicator color="#ffffff" />
@@ -802,104 +928,120 @@ export default function EstablishmentActivities() {
             }
             renderItem={({ item }) => {
               const slots = schedulesByActivity[item.id] ?? [];
+              const mainImageUrl = getActivityMainImageUrl(item);
+
               return (
-                <View className="mb-3 p-3 rounded-2xl bg-white border border-gray-200 shadow-sm">
-                  <Text className="font-semibold text-gray-900">
-                    {item.title ?? item.name ?? "Untitled activity"}
-                  </Text>
+                <View className="mb-4 rounded-3xl bg-white overflow-hidden border border-gray-200 shadow-sm">
+                  {/* Top image/banner */}
+                  {mainImageUrl ? (
+                    <Image source={{ uri: mainImageUrl }} className="w-full h-32" />
+                  ) : (
+                    <View className="w-full h-32 bg-slate-200" />
+                  )}
 
-                  {item.description ? (
-                    <Text className="text-gray-500 mt-1">
-                      {item.description}
+                  <View className="px-3 py-3">
+                    {/* Title + description + price */}
+                    <Text className="font-semibold text-gray-900 text-[15px]">
+                      {item.title ?? item.name ?? "Untitled activity"}
                     </Text>
-                  ) : null}
 
-                  {/* Price: handle both string (from MySQL) and number (from local state) */}
-                  {item.price !== null &&
-                    item.price !== undefined &&
-                    String(item.price) !== "" && (
-                      <Text className="text-gray-500 mt-1">
-                        Price: {item.price} BHD
+                    {item.description ? (
+                      <Text className="text-gray-500 mt-1 text-[12px]">
+                        {item.description}
                       </Text>
-                    )}
+                    ) : null}
 
-                  {/* Schedules */}
-                  <View className="mt-3 border-t border-gray-100 pt-2">
-                    <View className="flex-row items-center justify-between mb-1">
-                      <Text className="text-[13px] font-semibold text-gray-800">
-                        Schedules
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          scheduleFormActivityId === item.id
-                            ? resetScheduleForm()
-                            : openCreateSchedule(item.id)
-                        }
-                        className="px-3 py-[4px] rounded-full bg-blue-50"
-                      >
-                        <Text className="text-[12px] font-semibold text-blue-600">
-                          {scheduleFormActivityId === item.id
-                            ? "Close"
-                            : "Add / edit"}
+                    {item.price !== null &&
+                      item.price !== undefined &&
+                      String(item.price) !== "" && (
+                        <Text className="text-gray-500 mt-1 text-[12px]">
+                          Price: {item.price} BHD
+                        </Text>
+                      )}
+
+                    {/* Schedules */}
+                    <View className="mt-3 border-t border-gray-100 pt-2">
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className="text-[13px] font-semibold text-gray-800">
+                          Schedules
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() =>
+                            scheduleFormActivityId === item.id
+                              ? resetScheduleForm()
+                              : openCreateSchedule(item.id)
+                          }
+                          className="px-3 py-[4px] rounded-full bg-purple-50"
+                        >
+                          <Text className="text-[12px] font-semibold text-purple-600">
+                            {scheduleFormActivityId === item.id
+                              ? "Close"
+                              : "Add / edit"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {slots.length ? (
+                        slots.map((s) => (
+                          <View
+                            key={s.id}
+                            className="flex-row items-center justify-between mt-1"
+                          >
+                            <Text className="text-[12px] text-gray-700">
+                              {DAY_LABELS[s.day_of_week]} • {to12h(s.start_time)}
+                              {s.capacity
+                                ? ` • ${s.capacity} ${
+                                    s.capacity === 1 ? "spot" : "spots"
+                                  }`
+                                : ""}
+                            </Text>
+                            <View className="flex-row gap-3">
+                              <TouchableOpacity
+                                onPress={() => startEditSchedule(item.id, s)}
+                              >
+                                <Text className="text-[12px] font-semibold text-purple-600">
+                                  Edit
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => confirmDeleteSchedule(item.id, s.id)}
+                              >
+                                <Text className="text-[12px] font-semibold text-red-500">
+                                  Delete
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ))
+                      ) : (
+                        <Text className="text-[12px] text-gray-400">
+                          No schedules yet. Add one for this activity.
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Actions row: change image + edit/delete */}
+                    <View className="flex-row flex-wrap items-center gap-4 mt-3">
+                      <TouchableOpacity onPress={() => handleChangeActivityImage(item.id)}>
+                        <Text className="text-[12px] font-semibold text-purple-600">
+                          {changingActivityImageId === item.id
+                            ? "Changing image..."
+                            : "Change image"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => startEdit(item)}>
+                        <Text className="text-[12px] font-semibold text-purple-600">
+                          Edit
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                        <Text className="text-[12px] font-semibold text-red-600">
+                          Delete
                         </Text>
                       </TouchableOpacity>
                     </View>
-
-                    {slots.length ? (
-                      slots.map((s) => (
-                        <View
-                          key={s.id}
-                          className="flex-row items-center justify-between mt-1"
-                        >
-                          <Text className="text-[12px] text-gray-700">
-                            {DAY_LABELS[s.day_of_week]} •{" "}
-                            {to12h(s.start_time)}
-                            {s.capacity
-                              ? ` • ${s.capacity} ${
-                                  s.capacity === 1 ? "spot" : "spots"
-                                }`
-                              : ""}
-                          </Text>
-                          <View className="flex-row gap-3">
-                            <TouchableOpacity
-                              onPress={() =>
-                                startEditSchedule(item.id, s)
-                              }
-                            >
-                              <Text className="text-[12px] font-semibold text-blue-600">
-                                Edit
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() =>
-                                confirmDeleteSchedule(item.id, s.id)
-                              }
-                            >
-                              <Text className="text-[12px] font-semibold text-red-500">
-                                Delete
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <Text className="text-[12px] text-gray-400">
-                        No schedules yet. Add one for this activity.
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Activity edit/delete buttons */}
-                  <View className="flex-row gap-4 mt-3">
-                    <TouchableOpacity onPress={() => startEdit(item)}>
-                      <Text className="text-blue-600 font-semibold">Edit</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                      <Text className="text-red-600 font-semibold">
-                        Delete
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
               );

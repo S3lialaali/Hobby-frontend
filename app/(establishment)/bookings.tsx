@@ -5,11 +5,13 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   ScrollView,
+  Image
 } from "react-native";
 import { useCurrentUser } from "@/sessions/useCurrentUser";
 import { fetchEstablishments } from "@/api/establishments";
 import { fetchActivities } from "@/api/activities";
 import { fetchBusinessBookingSlots } from "@/api/bookings";
+import { API_BASE_URL } from "@/api/client";
 
 type Establishment = {
   id: number;
@@ -116,6 +118,22 @@ function to12h(hhmmss: string): string {
   const ampm = H < 12 ? "AM" : "PM";
 
   return `${h12}:${String(M).padStart(2, "0")} ${ampm}`;
+}
+
+function getActivityMainImageUrl(item: any): string | null {
+  const candidate =
+    item?.main_image ||
+    item?.image_url ||
+    (Array.isArray(item?.images) && item.images[0]?.url) ||
+    null;
+
+  if (!candidate) return null;
+  if (typeof candidate !== "string") return null;
+
+  if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+    return candidate;
+  }
+  return `${API_BASE_URL}/images/${candidate}`;
 }
 
 export default function EstablishmentBookings() {
@@ -382,13 +400,21 @@ export default function EstablishmentBookings() {
                 0
               );
 
+              const imageUrl = getActivityMainImageUrl(act);
               return (
                 <View
                   key={act.id}
                   className="mb-4 rounded-3xl bg-white overflow-hidden border border-gray-200 shadow-sm"
                 >
-                  {/* Top banner area (like the image area on establishment cards) */}
-                  <View className="h-28 bg-slate-200" />
+                  {/* Top banner (like the image area on establishment cards) */}
+                  {imageUrl ? (
+                    <Image
+                      source={{ uri: imageUrl }}
+                      className="w-full h-28"
+                    />
+                  ) : (
+                    <View className="w-full h-28 bg-slate-200" />
+                  )}
 
                   {/* Card content */}
                   <View className="px-3 py-3">

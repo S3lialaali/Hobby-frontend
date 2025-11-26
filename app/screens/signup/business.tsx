@@ -9,11 +9,14 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Image
 } from "react-native";
 import { router } from "expo-router";
 import { getApiError } from "@/api/client";
 // Use AuthContext instead of direct API + token setters
 import { useAuth } from "@/sessions/AuthContext";
+import * as ImagePicker from "expo-image-picker";   
+import { uploadEstablishmentImage } from "@/api/uploads";
 
 // Parse latitude/longitude from Google Maps URLs
 function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null {
@@ -49,7 +52,7 @@ function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null
 // Display address as: [ Country, City, Block, Road, Address ]
 function buildFormattedAddress(country: string, city: string, block: string, road: string, address: string) {
   const parts = [country, city, block, road, address].map((s) => (s || "").trim());
-  return `[ ${parts.join(", ")} ]`;
+  return `${parts.join(", ")}`;
 }
 
 export default function SignupBusiness() {
@@ -70,6 +73,35 @@ export default function SignupBusiness() {
   const [block, setBlock] = useState("");
   const [road, setRoad] = useState("");
   const [address, setAddress] = useState("");
+  // establishment image (required)
+  const [establishmentImage, setEstablishmentImage] = useState<{ uri: string } | null>(null);
+
+  async function handlePickEstablishmentImage() {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "We need access to your photo library to select an establishment image."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets && result.assets[0];
+      if (asset?.uri) {
+        setEstablishmentImage({ uri: asset.uri });
+      }
+    } catch (err) {
+      console.warn("Image pick error", err);
+      Alert.alert("Image error", "Could not open the image library. Please try again.");
+    }
+  }
 
   // maps URL → coords
   const [mapUrl, setMapUrl] = useState("");
@@ -98,6 +130,10 @@ export default function SignupBusiness() {
       Alert.alert("Invalid coordinates", "Please provide a valid Google Maps link.");
       return;
     }
+    if (!establishmentImage) {
+      Alert.alert("Image required", "Please select an image for your establishment.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -116,6 +152,21 @@ export default function SignupBusiness() {
       });
 
       const verifiedEmail = res?.user?.email || email;
+
+      const estId = res?.establishment?.id;
+
+      if (estId && establishmentImage?.uri) {
+        try {
+          await uploadEstablishmentImage(estId, establishmentImage.uri);
+        } catch (uploadErr) {
+          console.warn("Failed to upload establishment image", uploadErr);
+          Alert.alert(
+            "Image upload failed",
+            "Your business account was created, but we could not upload the establishment image. " +
+              "You will be able to try again later from the establishment account page."
+          );
+        }
+      }
 
       // try {
       //   await sendEmailVerification(verifiedEmail);
@@ -221,7 +272,25 @@ export default function SignupBusiness() {
           onChangeText={setCategory}
           className="border rounded-xl px-4 py-3 mb-3"
         />
+        {/* Establishment image (required) */}
+        <Text className="font-semibold mt-1 mb-2">Establishment image *</Text>
+        <View className="flex-row items-center mb-4">
+          <Pressable
+            onPress={handlePickEstablishmentImage}
+            className="px-4 py-2 rounded-2xl bg-purple-600"
+          >
+            <Text className="text-white text-sm font-semibold">Choose image</Text>
+          </Pressable>
 
+          {establishmentImage ? (
+            <Image
+              source={{ uri: establishmentImage.uri }}
+              className="w-16 h-16 rounded-xl ml-3"
+            />
+          ) : (
+            <Text className="ml-3 text-xs text-gray-500">No image selected</Text>
+          )}
+        </View>
         {/* Address */}
         <Text className="font-semibold mt-1 mb-2">Address (separate fields)</Text>
         <TextInput
