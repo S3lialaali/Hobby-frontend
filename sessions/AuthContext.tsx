@@ -6,6 +6,8 @@ import {
     loadRefreshToken,
     saveRefreshToken,
 } from "./storage";
+import * as usersApi from "../api/users";
+
 
 type User = Record<string, any> | null;
 
@@ -24,6 +26,7 @@ type AuthContextType = {
 	verifyEmailCode: (payload: { email: string; code: string}) => Promise<any>;
 	sendPhoneVerification: (phone: string) => Promise<void>;
     verifyPhoneCode: (payload: { phone: string; code: string }) => Promise<any>;
+	updateUserProfile: (payload: Record<string, any>) => Promise<any>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,6 +126,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		}
 	}
 
+	async function updateUserProfile(payload: Record<string, any>) {
+    	setLoading(true);
+		try {
+			const updated = await usersApi.updateCurrentUser(payload);
+			if (updated) {
+				setUser(updated); // keep context in sync with backend
+				}
+			return updated ?? null;
+			} finally {
+			setLoading(false);
+			}
+  	}
+
+
 	async function signOut() {
 		setLoading(true);
 		try {
@@ -185,7 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		sendEmailVerification,
 		verifyEmailCode,
 		sendPhoneVerification,
-		verifyPhoneCode
+		verifyPhoneCode,
+		updateUserProfile
 	};
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

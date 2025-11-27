@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Pressable,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -17,6 +19,7 @@ import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useAuth } from '../../sessions/AuthContext';
 import { fetchBookings } from '../../api/bookings';
 import { fetchUserReviews, reportProblem, fetchUserReports } from '../../api/users';
+import { getApiError } from '../../api/client';
 
 const VIOLET = '#7C3AED';
 
@@ -95,7 +98,7 @@ type UserReport = {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, initializing, loading, signOut } = useAuth();
+  const { user, initializing, loading, signOut, updateUserProfile } = useAuth();
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
@@ -113,6 +116,24 @@ export default function ProfileScreen() {
   const [reports, setReports] = useState<UserReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [showReports, setShowReports] = useState(false);
+
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+  const [editUsername, setEditUsername] = useState(user?.username ?? "");
+  const [editEmail, setEditEmail] = useState(user?.email ?? "");
+  const [editPhone, setEditPhone] = useState(user?.phone ?? "");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setEditUsername("");
+      setEditEmail("");
+      setEditPhone("");
+      return;
+    }
+      setEditUsername(user.username ?? "");
+      setEditEmail(user.email ?? "");
+      setEditPhone(user.phone ?? "");
+  }, [user?.id, user?.username, user?.email, user?.phone]);
 
   // Fetch user bookings to compute counts
   useEffect(() => {
@@ -178,6 +199,83 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditProfileSave = async () => {
+    if (!user) return;
+
+    const newUsername = editUsername.trim();
+    const newEmail = editEmail.trim();
+    const newPhone = editPhone.trim();
+
+    if (!newUsername || !newEmail) {
+      Alert.alert("Missing information", "Username and email are required.");
+      return;
+    }
+
+    const payload: any = {};
+    if (newUsername !== (user.username || "")) {
+      payload.username = newUsername;
+    }
+    if (newEmail !== (user.email || "")) {
+      payload.email = newEmail;
+    }
+    if (newPhone !== (user.phone || "")) {
+      payload.phone = newPhone || null;
+    }
+
+    const emailChanged = payload.email !== undefined;
+    const phoneChanged = payload.phone !== undefined;
+
+    if (!Object.keys(payload).length) {
+      Alert.alert("Nothing to update", "You have not changed any information.");
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const updatedUser = await updateUserProfile(payload);
+      if (!updatedUser) {
+        throw new Error("update_failed");
+      }
+
+      setEditProfileVisible(false);
+
+      if (emailChanged) {
+        Alert.alert(
+          "Email updated",
+          "Your email has been updated. Please verify your new email address."
+        );
+        router.push({
+          pathname: "/screens/verify-email",
+          params: { email: updatedUser.email },
+        });
+        return;
+      }
+
+      if (phoneChanged) {
+        Alert.alert(
+          "Phone updated",
+          "Your phone number has been updated. Please verify your new phone number."
+        );
+        router.push({
+          pathname: "/screens/verify-phone",
+          params: { phone: updatedUser.phone },
+        });
+        return;
+      }
+
+      Alert.alert("Profile updated", "Your profile information has been updated.");
+    } catch (err: any) {
+      console.error("edit profile error", err);
+      const msg =
+        getApiError(err) || "Failed to update profile. Please try again.";
+      Alert.alert("Error", msg);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+
+
   const formatDate = (iso?: string) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -229,6 +327,7 @@ export default function ProfileScreen() {
   const displayName = user.name || user.fullName || user.username || 'User';
   const username = user.username || user.handle || (user.email ? user.email.split('@')[0] : '—');
   const email = user.email || '—';
+  const phone = user.phone || '—';
   const avatarUrl: string | null = user.avatar || user.photoUrl || null;
   const avatarSource = avatarUrl
     ? { uri: avatarUrl }
@@ -297,18 +396,12 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    className="px-3 py-2 rounded-full border"
-                    style={{ borderColor: VIOLET }}
-                    onPress={() => {
-                      // router.push('/(user)/edit-profile');
-                    }}
-                  >
-                    <Text className="text-[13px] font-semibold" style={{ color: VIOLET }}>
-                      Edit
-                    </Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-row items-center px-3 py-1 rounded-full bg-white border border-gray-200"
+                  onPress={() => setEditProfileVisible(true)}>
+                  <Feather name="edit-3" size={16} color={VIOLET} />
+                  <Text className="ml-1 text-[12px] font-medium text-violet-700">Edit</Text>
+                </TouchableOpacity>
                 </View>
 
                 {/* Quick stats: counts only */}
@@ -345,6 +438,13 @@ export default function ProfileScreen() {
                   icon={<Feather name="mail" size={18} color={VIOLET} />}
                   label="Email"
                   value={email}
+                  onPress={() => {}}
+                />
+                <View className="h-px bg-gray-200" />
+                <Row
+                  icon={<Feather name="phone" size={18} color={VIOLET} />}
+                  label="Phone"
+                  value={phone}
                   onPress={() => {}}
                 />
               </View>
@@ -606,6 +706,109 @@ export default function ProfileScreen() {
             <View className="px-5 mt-10 items-center opacity-60">
               <Text className="text-[12px] text-gray-500">App v1.0.0</Text>
             </View>
+
+            {/* Edit Profile Modal */}
+            <Modal
+              transparent
+              visible={editProfileVisible}
+              animationType="slide"
+              onRequestClose={() => setEditProfileVisible(false)}
+            >
+              <Pressable
+                className="flex-1 bg-black/40"
+                onPress={() => setEditProfileVisible(false)}
+              >
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === "ios" ? "padding" : undefined}
+                  className="flex-1 justify-center px-6"
+                >
+                  <Pressable
+                    className="rounded-3xl bg-white px-5 py-5"
+                    onPress={(e) => e.stopPropagation()}
+                  >
+                    <Text className="text-lg font-semibold text-gray-900 mb-1">
+                      Edit profile
+                    </Text>
+                    <Text className="text-xs text-gray-500 mb-4">
+                      Update your username, email and phone number.
+                    </Text>
+
+                    {/* Username */}
+                    <View className="mb-3">
+                      <Text className="text-[13px] text-gray-600 mb-1">Username</Text>
+                      <TextInput
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-[14px] text-gray-900"
+                        placeholder="Username"
+                        autoCapitalize="none"
+                        value={editUsername}
+                        onChangeText={setEditUsername}
+                      />
+                    </View>
+
+                    {/* Email */}
+                    <View className="mb-3">
+                      <View className="flex-row items-center mb-1">
+                        <Text className="text-[13px] text-gray-600">Email</Text>
+                        {!user?.is_email_verified && (
+                          <Text className="ml-2 text-[11px] text-red-500">Not verified</Text>
+                        )}
+                      </View>
+                      <TextInput
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-[14px] text-gray-900"
+                        placeholder="Email"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={editEmail}
+                        onChangeText={setEditEmail}
+                      />
+                    </View>
+
+                    {/* Phone */}
+                    <View className="mb-4">
+                      <View className="flex-row items-center mb-1">
+                        <Text className="text-[13px] text-gray-600">Phone</Text>
+                        {!user?.is_phone_verified && (
+                          <Text className="ml-2 text-[11px] text-red-500">Not verified</Text>
+                        )}
+                      </View>
+                      <TextInput
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-[14px] text-gray-900"
+                        placeholder="Phone (optional)"
+                        keyboardType="phone-pad"
+                        value={editPhone}
+                        onChangeText={setEditPhone}
+                      />
+                    </View>
+
+                    {/* Buttons */}
+                    <View className="flex-row justify-end mt-1">
+                      <TouchableOpacity
+                        onPress={() => setEditProfileVisible(false)}
+                        disabled={savingProfile}
+                        className="px-4 py-2 rounded-2xl mr-2 border border-gray-200"
+                      >
+                        <Text className="text-[13px] text-gray-700">Cancel</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={handleEditProfileSave}
+                        disabled={savingProfile}
+                        className="px-4 py-2 rounded-2xl"
+                        style={{ backgroundColor: savingProfile ? "#E5E7EB" : VIOLET }}
+                      >
+                        {savingProfile ? (
+                          <ActivityIndicator size="small" color="#ffffff" />
+                        ) : (
+                          <Text className="text-[13px] font-semibold text-white">
+                            Save changes
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </Pressable>
+                </KeyboardAvoidingView>
+              </Pressable>
+            </Modal>
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>

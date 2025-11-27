@@ -71,14 +71,24 @@ export default function VerifyEmailScreen() {
           {
             text: "Continue",
             onPress: () => {
-              //after verifying email, go to phone verification next
-              router.replace({
-                pathname: "/screens/verify-phone",
-                params: { phone: user?.phone ?? "" },
-              });
-            },
+              // If phone is already verified, go straight to the main interface
+              if (user?.is_phone_verified) {
+                if (role === "business") {
+                  router.replace("/(establishment)/dashboard");
+                } else {
+                  router.replace("/(tabs)");
+                }
+              } else {
+                // Otherwise, go to phone verification
+                router.replace({
+                  pathname: "/screens/verify-phone",
+                  params: { phone: user?.phone ?? "" },
+                });
+            }
           },
-        ]);
+        },
+      ]
+    );
       } else {
         Alert.alert("Verification", "Could not verify your email. Please check the code and try again.");
       }
