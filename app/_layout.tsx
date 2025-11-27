@@ -21,6 +21,7 @@ export default function RootLayout() {
         <Stack initialRouteName="screens/login">
         <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+        <Stack.Screen name="(establishment)" options={{ headerShown: false }} />
         <Stack.Screen
           name="screens/establishment"
           options={{ headerShown: false, title: "Establishment" }}

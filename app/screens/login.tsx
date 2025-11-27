@@ -84,6 +84,7 @@ export default function LoginScreen() {
       <Text className="text-xl font-semibold mb-3">Sign in</Text>
 
       <TextInput
+        placeholderTextColor="grey"
         placeholder="Email or phone"
         autoCapitalize="none"
         keyboardType="email-address"
@@ -92,6 +93,7 @@ export default function LoginScreen() {
         className="border rounded-xl px-4 py-3 mb-3"
       />
       <TextInput
+        placeholderTextColor="grey"
         placeholder="Password"
         secureTextEntry
         value={password}

@@ -2,6 +2,7 @@ import { Tabs, router, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { View, ActivityIndicator, Pressable, Text, StyleSheet, Platform } from "react-native";
 import { useCurrentUser } from "../../sessions/useCurrentUser.js";
+import { FontAwesome } from "@expo/vector-icons";
 
 const colors = {
   primary_orange: '#FFC067',
@@ -35,31 +36,65 @@ export default function EstablishmentLayout() {
 
     //business user interface has three tabs: dashboard, activities, and instructros
     return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingTop: 50 }}>
             <Tabs
                 screenOptions={{
                     headerShown: false,
-                    // place the back button inside the header for all tabs
-                    headerLeft: () => (
-                        <Pressable
-                            onPress={() => router.replace("/screens/login")}
-                            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingLeft: 12 }]}
-                        >
-                            <Text style={styles.backText}>‹ Back</Text>
-                        </Pressable>
-                    ),
+                    tabBarActiveTintColor: colors.secondary_purple,
+                    tabBarShowLabel: false,
+                    tabBarItemStyle: { paddingTop: 8 },
                 }}
             >
-            {/*Default tab -> Dashbaord*/}
-            <Tabs.Screen name = "index" options={{title: "Dashboard"}} />
-            {/*Activity management screen*/}
-            <Tabs.Screen name = "activities" options={{title: "Activities"}} />
-            {/*Instructor management screen*/}
-            <Tabs.Screen name = "instructors" options={{title: "Instructors"}} />
-            {/*Account management*/}
-            <Tabs.Screen name = "account" options={{title: "Account"}}/>
-            <Tabs.Screen name = "bookings" options={{title: "Bookings"}}/>
-        </Tabs>
+            <Tabs.Screen 
+                name = "dashboard" 
+                options={{
+                    title: "Dashboard",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <FontAwesome name="home" size={32} color={focused ? colors.secondary_purple : color} />
+                    ),
+                }} 
+            />
+            
+            <Tabs.Screen 
+                name = "activities"
+                options={{
+                    title: "Activities",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <FontAwesome name="table" size={32} color={focused ? colors.secondary_purple : color} />
+                    ),
+                }}
+            />
+
+            <Tabs.Screen 
+                name = "instructors" 
+                options={{
+                    title: "Instructors",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <FontAwesome name="users" size={32} color={focused ? colors.secondary_purple : color} />
+                    ),
+                }} 
+            />
+        
+            <Tabs.Screen 
+                name = "bookings" 
+                options={{
+                    title: "Bookings",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <FontAwesome name="book" size={32} color={focused ? colors.secondary_purple : color} />
+                    )
+                }}
+            />
+
+            <Tabs.Screen 
+                name = "account" 
+                options={{
+                    title: "Account",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <FontAwesome name="user" size={32} color={focused ? colors.secondary_purple : color} />
+                    )
+                }}
+            />
+            </Tabs>
         </View>
     );
 }
