@@ -131,10 +131,11 @@ export default function VerifyEmailScreen() {
         <Text className="text-2xl font-semibold mb-2">Verify your email</Text>
         <Text className="text-gray-600 mb-4">
           We’ve sent a 6-digit verification code to{" "}
-          <Text className="font-semibold">{email}</Text>. Enter it below to verify your account.
+          <Text className="font-semibold text-violet-600">{email}</Text>. Enter it below to verify your account.
         </Text>
 
         <TextInput
+        placeholderTextColor="grey"
           placeholder="6-digit code"
           keyboardType="number-pad"
           value={code}
@@ -163,14 +164,14 @@ export default function VerifyEmailScreen() {
           {sending ? (
             <ActivityIndicator />
           ) : (
-            <Text className="text-blue-600">Resend code</Text>
+            <Text className="text-violet-600 underline">Resend code</Text>
           )}
         </Pressable>
         <Pressable
         onPress={() => router.replace("/screens/login")}
         className="items-center mt-2"
       >
-        <Text className="text-gray-600 underline">Back to login</Text>
+        <Text className="text-violet-600 underline">Back to login</Text>
       </Pressable>
       </View>
     </TouchableWithoutFeedback>
