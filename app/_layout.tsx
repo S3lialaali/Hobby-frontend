@@ -26,8 +26,9 @@ export default function RootLayout() {
           name="screens/establishment"
           options={{ headerShown: false, title: "Establishment" }}
         />
-        {/* NEW: make sure these exist */}
+        
         <Stack.Screen name="screens/login"  options={{ headerShown: false, title: "Login" }} />
+        <Stack.Screen name="screens/forgot-password" options={{ headerShown: false, title: "Forgot Password" }} />
         {/* role-based signup screens */}
         <Stack.Screen name="screens/signup/role" options={{ headerShown: false, title: "Choose role"}} />
         <Stack.Screen name="screens/signup/user" options={{ headerShown: false, title: "Sign up (User)"}} />

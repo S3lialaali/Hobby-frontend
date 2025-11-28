@@ -47,3 +47,8 @@ export async function verifyPhone(payload) {
     // payload is phone and code 
     return post("/auth/verify-phone", payload);
 }
+
+// request password reset link
+export async function requestPasswordReset(email) {
+    return post("/auth/forgot-password", { email });
+}
