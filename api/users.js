@@ -50,3 +50,8 @@ export function updateReportsStatus(id, status) {
     // backend exposes singular route for updating a single report
     return patch(`${base}/reports/${id}/status`, { status });
 } 
+
+export function updateCurrentUser(payload) {
+  return patch(`${base}/me`, payload);
+}
+

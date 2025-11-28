@@ -1,92 +1,275 @@
-//dashboard page that loads establishment owned by the current user and shows its data
-import React, {useEffect, useState} from "react";
-import { View, Text, ActivityIndicator, FlatList } from "react-native";
+// app/(establishment)/dashboard.tsx
+// Establishment dashboard that shows high-level stats for the business owner
+
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useCurrentUser } from "@/sessions/useCurrentUser";
-import { fetchEstablishments } from "@/api";
-import { fetchActivities } from "@/api";
-import { fetchInstructors } from "@/api";
+import { fetchEstablishments } from "@/api/establishments";
+import { fetchActivities } from "@/api/activities";
+import { fetchInstructors } from "@/api/instructors";
+import { fetchBookings } from "@/api/bookings";
+
+const VIOLET = "#7C3AED";
+
+type Establishment = {
+  id: number;
+  name: string;
+  status: string;
+  activity_count?: number | null;
+  instructor_count?: number | null;
+};
+
+type Activity = {
+  id: number;
+  establishment_id: number;
+};
+
+type Instructor = {
+  id: number;
+  establishment_id: number;
+};
+
+function SummaryCard({
+  title,
+  value,
+  subtitle,
+  bgColor,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  bgColor: string;
+}) {
+  return (
+    <View
+      className="w-full rounded-2xl px-4 py-3 mb-4 border bg-white"
+      style={{
+        backgroundColor: `${bgColor}1A`,
+        borderColor: `${bgColor}33`,
+      }}
+    >
+      <Text className="text-[12px] font-semibold text-gray-700 mb-1">
+        {title}
+      </Text>
+      <Text
+        className="text-[24px] font-extrabold mb-1"
+        style={{ color: bgColor }}
+      >
+        {value}
+      </Text>
+      {subtitle ? (
+        <Text className="text-[11px] text-gray-600" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 export default function EstablishmentDashboard() {
-    //id of current user from jwt
-    const { id:userId} = useCurrentUser();
+  const { id: userId } = useCurrentUser();
 
-    //local state, loading and data
-    const [loading, setLoading] = useState(true); //show loading
-    const [establishments, setEstablishments] = useState<any[]>([]); //all establishments owned by user
-    const [activityCount, setActivityCount] = useState(0);
-    const [instructorCount, setInstructorCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        //load data
-        (async () => {
-            setLoading(true);
-            try {
-                //1- fetch establishments owned by the user id
-                const establishment = await fetchEstablishments({ owner_user_id: userId});
-                setEstablishments(establishment || []);
+  const [establishment, setEstablishment] = useState<Establishment | null>(null);
+  const [activityCount, setActivityCount] = useState(0);
+  const [instructorCount, setInstructorCount] = useState(0);
+  const [bookingsCount, setBookingsCount] = useState(0);
 
-                //2-fetch the establishment id (only one per user at the moment)
-                const est = establishment?.[0];
-                if (est?.id) {
-                    //count activities and instructors 
-                    const activities = await fetchActivities({ establishment_id: est.id });
-                    const instructors = await fetchInstructors({ establishment_id: est.id});
-                    setActivityCount(Array.isArray(activities) ? activities.length : 0);
-                    setInstructorCount(Array.isArray(instructors) ? instructors.length : 0);
-                } else {
-                    setActivityCount(0);
-                    setInstructorCount(0);
-                }
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [userId]);
-
-    if (loading) {
-        return (
-            <View className="flex-1 items-center justify-center">
-                <ActivityIndicator />
-                <Text className="mt-2">Loading...</Text>
-            </View>
-        );
+  const loadDashboard = useCallback(async () => {
+    if (!userId) {
+      setError("You must be logged in as a business user.");
+      setLoading(false);
+      return;
     }
 
-    const est = establishments[0];  //the establishment to display
+    setError(null);
+    setLoading(true);
 
-    return (
-        <View className="flex-1 p-4">
-            <Text className="text-xl font-bold mb-2">Dashboard</Text>
+    try {
+      // 1) Load the establishment owned by this user
+      const estList = await fetchEstablishments({ owner_user_id: userId });
+      const est = Array.isArray(estList) ? (estList[0] as Establishment | undefined) : undefined;
 
-            {est ? (
-                <>
-                    {/* Summary of establishment info */}
-                    <Text className="mb-1">Establishment: {est.name}</Text>
-                    <Text className="mb-1">Status: {est.status}</Text>
-                    <Text className="mb-1">Activities: {activityCount}</Text>
-                    <Text className="mb-4">Instructors: {instructorCount}</Text>
+      if (!est || !est.id) {
+        setEstablishment(null);
+        setActivityCount(0);
+        setInstructorCount(0);
+        setBookingsCount(0);
+        setError("No establishment yet. Create one to see your dashboard.");
+        return;
+      }
 
-                    {/* details */}
-                    <Text className="text-base font-semibold mb-2">Your establishment</Text>
-            <FlatList
-                data={establishments}
-                keyExtractor={(x) => String(x.id)}
-                ListEmptyComponent={<Text>No establishment found.</Text>}
-                renderItem={({ item }) => (
-                <View className="mb-3 p-3 rounded-2xl border border-gray-200">
-                    <Text className="font-semibold">{item.name}</Text>
-                    <Text className="text-gray-500">{item.address}</Text>
-                    <Text className="text-gray-500">Status: {item.status}</Text>
-                    <Text className="text-gray-500">Clicks: {item.clicks}</Text>
-                </View>
-                )}
-                />
-                </>
-            ) : (
-                <Text>No establishment available</Text>
-            )
+      setEstablishment(est);
 
-            }
+      // 2) Load activities + instructors in parallel
+      const [activitiesRaw, instructorsRaw] = await Promise.all([
+        fetchActivities({ establishment_id: est.id }),
+        fetchInstructors({ establishment_id: est.id }),
+      ]);
+
+      const activities: Activity[] = Array.isArray(activitiesRaw)
+        ? (activitiesRaw as Activity[])
+        : [];
+      const instructors: Instructor[] = Array.isArray(instructorsRaw)
+        ? (instructorsRaw as Instructor[])
+        : [];
+
+      // For counts, prefer actual lists. If you want to rely on
+      // est.activity_count / est.instructor_count you can swap these.
+      setActivityCount(activities.length);
+      setInstructorCount(instructors.length);
+
+      // 3) Total bookings: sum bookings for each activity
+      if (!activities.length) {
+        setBookingsCount(0);
+      } else {
+        const bookingsArrays = await Promise.all(
+          activities.map((act) => fetchBookings({ activity_id: act.id }))
+        );
+
+        const total = bookingsArrays.reduce((sum, arr) => {
+          if (!Array.isArray(arr)) return sum;
+          return sum + arr.length;
+        }, 0);
+
+        setBookingsCount(total);
+      }
+    } catch (err) {
+      console.error("[EstablishmentDashboard] load error", err);
+      setError("Could not load dashboard data. Please pull to refresh.");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDashboard]);
+
+  return (
+    <ScrollView
+      className="flex-1 bg-slate-50"
+      contentContainerStyle={{ paddingBottom: 24 }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      <View className="px-4 pt-4 pb-4">
+        <Text className="text-[28px] font-extrabold text-gray-900">
+          Dashboard
+        </Text>
+      </View>
+
+      {loading ? (
+        <View className="flex-1 items-center justify-center mt-10">
+          <ActivityIndicator />
+          <Text className="text-[12px] text-gray-500 mt-2">
+            Loading your dashboard…
+          </Text>
         </View>
-    );
+      ) : establishment ? (
+        <View className="px-4 mt-3">
+          {/* Establishment summary card */}
+          <View className="rounded-3xl bg-white px-4 py-4 border border-gray-200 shadow-sm mb-4">
+            <Text className="text-[15px] font-semibold text-gray-900">
+              {establishment.name}
+            </Text>
+
+            <View className="flex-row items-center mt-2">
+              <View
+                className="px-2 py-[2px] rounded-full"
+                style={{
+                  backgroundColor:
+                    establishment.status === "approved"
+                      ? "#DCFCE7"
+                      : establishment.status === "rejected"
+                      ? "#FEE2E2"
+                      : "#FEF9C3",
+                }}
+              >
+                <Text
+                  className="text-[11px] font-semibold"
+                  style={{
+                    color:
+                      establishment.status === "approved"
+                        ? "#166534"
+                        : establishment.status === "rejected"
+                        ? "#991B1B"
+                        : "#92400E",
+                  }}
+                >
+                  {establishment.status
+                    ? establishment.status.charAt(0).toUpperCase() +
+                      establishment.status.slice(1)
+                    : "Pending"}
+                </Text>
+              </View>
+
+              <Text className="text-[11px] text-gray-500 ml-2">
+                Owner dashboard
+              </Text>
+            </View>
+          </View>
+
+          {/* Stats row – similar style to admin dashboard */}
+          <View className="flex-row flex-wrap justify-between">
+            <SummaryCard
+              title="Total bookings"
+              value={bookingsCount}
+              bgColor="#7C3AED"
+            />
+            <SummaryCard
+              title="Activities"
+              value={activityCount}
+              bgColor="#2563EB"
+            />
+            <SummaryCard
+              title="Total Instructors"
+              value={instructorCount}
+              bgColor="#10B981"
+            />
+          </View>
+
+          {error ? (
+            <View className="mt-2">
+              <Text className="text-[11px] text-red-500">{error}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View className="px-4 mt-8">
+          <View className="rounded-3xl bg-white px-4 py-4 border border-gray-200 shadow-sm">
+            <Text className="text-[15px] font-semibold text-gray-900 mb-1">
+              No establishment yet
+            </Text>
+            <Text className="text-[12px] text-gray-500">
+              Once your establishment is created and approved, you’ll see
+              activity, instructor, and booking stats here.
+            </Text>
+          </View>
+          {error ? (
+            <Text className="text-[11px] text-red-500 mt-2">{error}</Text>
+          ) : null}
+        </View>
+      )}
+    </ScrollView>
+  );
 }

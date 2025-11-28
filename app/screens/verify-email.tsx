@@ -71,14 +71,24 @@ export default function VerifyEmailScreen() {
           {
             text: "Continue",
             onPress: () => {
-              //after verifying email, go to phone verification next
-              router.replace({
-                pathname: "/screens/verify-phone",
-                params: { phone: user?.phone ?? "" },
-              });
-            },
+              // If phone is already verified, go straight to the main interface
+              if (user?.is_phone_verified) {
+                if (role === "business") {
+                  router.replace("/(establishment)/dashboard");
+                } else {
+                  router.replace("/(tabs)");
+                }
+              } else {
+                // Otherwise, go to phone verification
+                router.replace({
+                  pathname: "/screens/verify-phone",
+                  params: { phone: user?.phone ?? "" },
+                });
+            }
           },
-        ]);
+        },
+      ]
+    );
       } else {
         Alert.alert("Verification", "Could not verify your email. Please check the code and try again.");
       }
@@ -121,10 +131,11 @@ export default function VerifyEmailScreen() {
         <Text className="text-2xl font-semibold mb-2">Verify your email</Text>
         <Text className="text-gray-600 mb-4">
           We’ve sent a 6-digit verification code to{" "}
-          <Text className="font-semibold">{email}</Text>. Enter it below to verify your account.
+          <Text className="font-semibold text-violet-600">{email}</Text>. Enter it below to verify your account.
         </Text>
 
         <TextInput
+        placeholderTextColor="grey"
           placeholder="6-digit code"
           keyboardType="number-pad"
           value={code}
@@ -153,14 +164,14 @@ export default function VerifyEmailScreen() {
           {sending ? (
             <ActivityIndicator />
           ) : (
-            <Text className="text-blue-600">Resend code</Text>
+            <Text className="text-violet-600 underline">Resend code</Text>
           )}
         </Pressable>
         <Pressable
         onPress={() => router.replace("/screens/login")}
         className="items-center mt-2"
       >
-        <Text className="text-gray-600 underline">Back to login</Text>
+        <Text className="text-violet-600 underline">Back to login</Text>
       </Pressable>
       </View>
     </TouchableWithoutFeedback>

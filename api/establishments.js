@@ -1,5 +1,5 @@
 //rest wrapper for establishment routes
-import { get, post, put, del } from "./client";
+import { get, post, put, patch, del } from "./client";
 
 const base = "/api/establishments";
 
@@ -26,6 +26,10 @@ export function fetchEstablishments(params = {}) {
     return get(appendQuery(base, params));
 }
 
+export function updateEstablishment(id, payload) {
+    return patch(`${base}/${id}`, payload);
+}
+
 export function fetchEstablishmentsByCategory(category, params = {}) {
     const path = `{base}/category/${encodeURIComponent(category)}`;
     return get(appendQuery(path, params));
@@ -45,10 +49,6 @@ export function rateEstablishment(id, payload ) {
 
 export function createEstablishment(payload) {
     return post(base, payload);
-}
-
-export function updateEstablishment(id, payload) {
-    return put(`${base}/${id}`, payload);
 }
 
 export function fetchEstablishmentReviews(id, params = {}) {

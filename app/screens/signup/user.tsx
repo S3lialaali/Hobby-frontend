@@ -4,6 +4,17 @@ import { router } from "expo-router";
 import { getApiError } from "../../../api/client";
 import { useAuth } from "../../../sessions/AuthContext";
 
+function withBahrainCode(raw: string) {
+  const digits = raw.replace(/\D/g, ""); // keep only numbers
+  if (!digits) return "";
+  // If user somehow pastes 973xxxxxxxx, just add the +
+  if (digits.startsWith("973")) {
+    return `+${digits}`;
+  }
+  // Otherwise prefix with 973
+  return `+973${digits}`;
+}
+
 export default function SignupUser() {
   const [username, setUsername] = useState("");
   const [email, setEmail]     = useState("");
@@ -12,6 +23,8 @@ export default function SignupUser() {
   const [loading, setLoading]   = useState(false);
 
   const { registerUser, sendEmailVerification } = useAuth();
+
+  const phoneWithCode = withBahrainCode(phone);
 
   async function onSubmit() {
     if (!username || !email || !password) {
@@ -25,7 +38,7 @@ export default function SignupUser() {
         username,
         email,
         password,
-        phone: phone || null,
+        phone: phoneWithCode
       });
 
       const verifiedEmail = res?.user?.email || email;
@@ -81,14 +94,18 @@ export default function SignupUser() {
         className="border rounded-xl px-4 py-3 mb-3"
       />
 
-      <TextInput
-        placeholder="Phone (optional, e.g., +9733xxxxxxx)"
-        placeholderTextColor="rgba(60,60,67,0.6)"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-        className="border rounded-xl px-4 py-3 mb-3"
-      />
+      <View className="flex-row items-center border rounded-xl px-3 py-3 mb-4">
+        <Text className="text-gray-700 mr-2">+973</Text>
+        <View className="h-4 border-r border-gray-300 mr-2" />
+          <TextInput
+            className="flex-1"
+            placeholder="Phone number"
+            placeholderTextColor="grey"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+      </View>
 
       <TextInput
         placeholder="Password (min 8 chars)"

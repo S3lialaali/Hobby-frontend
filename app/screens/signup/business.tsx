@@ -18,6 +18,17 @@ import { useAuth } from "@/sessions/AuthContext";
 import * as ImagePicker from "expo-image-picker";   
 import { uploadEstablishmentImage } from "@/api/uploads";
 
+function withBahrainCode(raw: string) {
+  const digits = raw.replace(/\D/g, ""); // keep only numbers
+  if (!digits) return "";
+  // If user somehow pastes 973xxxxxxxx, just add the +
+  if (digits.startsWith("973")) {
+    return `+${digits}`;
+  }
+  // Otherwise prefix with 973
+  return `+973${digits}`;
+}
+
 // Parse latitude/longitude from Google Maps URLs
 function parseGoogleMapsLatLng(url: string): { lat: number; lng: number } | null {
   try {
@@ -68,7 +79,7 @@ export default function SignupBusiness() {
   const [category, setCategory] = useState("");
 
   // address parts
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState("Bahrain");
   const [city, setCity] = useState("");
   const [block, setBlock] = useState("");
   const [road, setRoad] = useState("");
@@ -116,6 +127,8 @@ export default function SignupBusiness() {
   //  from AuthContext
   const { registerBusiness, sendEmailVerification } = useAuth();
 
+  const phoneWithCode = withBahrainCode(phone);
+
   async function onSubmit() {
     if (!username || !email || !password || !name) {
       Alert.alert("Missing info", "Username, email, password, and establishment name are required.");
@@ -142,7 +155,7 @@ export default function SignupBusiness() {
         username,
         email,
         password,
-        phone: phone || null,
+        phone: phoneWithCode,
         establishment_name: name,
         establishment_description: description || null,
         establishment_category: category || null,
@@ -211,7 +224,7 @@ export default function SignupBusiness() {
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets
       >
-        <Text className="text-xl font-semibold mb-3">Register your establishment</Text>
+        <Text className="text-xl font-semibold mb-3 mt-4 pt-4">Register your establishment</Text>
 
         {/* Account */}
         <Text className="font-semibold mt-1 mb-2">Account</Text>
@@ -232,14 +245,20 @@ export default function SignupBusiness() {
           keyboardType="email-address"
           className="border rounded-xl px-4 py-3 mb-3"
         />
-        <TextInput
-          placeholder="Phone (e.g., +9733xxxxxxx)"
-          placeholderTextColor="rgba(60,60,67,0.6)"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          className="border rounded-xl px-4 py-3 mb-3"
-        />
+        
+        <View className="flex-row items-center border rounded-xl px-3 py-3 mb-4">
+          <Text className="text-gray-700 mr-2">+973</Text>
+          <View className="h-4 border-r border-gray-300 mr-2" />
+          <TextInput
+            className="flex-1"
+            placeholder="Phone number"
+            placeholderTextColor="grey"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+        </View>
+
         <TextInput
           placeholder="Password (min 8 chars)"
           placeholderTextColor="rgba(60,60,67,0.6)"
@@ -293,13 +312,12 @@ export default function SignupBusiness() {
         </View>
         {/* Address */}
         <Text className="font-semibold mt-1 mb-2">Address (separate fields)</Text>
-        <TextInput
-          placeholder="Country (e.g., Bahrain)"
-          placeholderTextColor="rgba(60,60,67,0.6)"
-          value={country}
-          onChangeText={setCountry}
-          className="border rounded-xl px-4 py-3 mb-3"
-        />
+        <View className="mb-4">
+          <Text className="text-sm font-medium mb-1">Country</Text>
+          <View className="border rounded-xl px-4 py-3 bg-gray-50">
+            <Text className="text-gray-900">Bahrain</Text>
+          </View>
+        </View>
         <TextInput
           placeholder="City (e.g., Manama)"
           placeholderTextColor="rgba(60,60,67,0.6)"

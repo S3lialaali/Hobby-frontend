@@ -84,6 +84,7 @@ export default function LoginScreen() {
       <Text className="text-xl font-semibold mb-3">Sign in</Text>
 
       <TextInput
+        placeholderTextColor="grey"
         placeholder="Email or phone"
         autoCapitalize="none"
         keyboardType="email-address"
@@ -92,6 +93,7 @@ export default function LoginScreen() {
         className="border rounded-xl px-4 py-3 mb-3"
       />
       <TextInput
+        placeholderTextColor="grey"
         placeholder="Password"
         secureTextEntry
         value={password}
@@ -112,11 +114,22 @@ export default function LoginScreen() {
       </Pressable>
 
       {/* Sign up link -> role.tsx */}
+      <View className="flex-row justify-center mt-6">
+        <Text className="text-gray-600">Don&apos;t have an account? </Text>
+
+        <Pressable onPress={() => router.push("/screens/signup/role")}>
+          <Text className="text-violet-600 underline font-semibold">
+            Sign up
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Forgot password link */}
       <Pressable
-        onPress={() => router.push("/screens/signup/role")}
-        className="mt-4 items-center"
+        onPress={() => router.push("../screens/forgot-password")}
+        className="mb-4 items-center"
       >
-        <Text className="text-blue-600">Don’t have an account? Sign up</Text>
+        <Text className="text-violet-600 text-sm">Forgot password?</Text>
       </Pressable>
     </View>
   );

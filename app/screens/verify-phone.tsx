@@ -148,25 +148,14 @@ export default function VerifyPhoneScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View className="flex-1 bg-white px-6 py-10">
-        <Text className="text-2xl font-bold mb-4 text-gray-900">
+      <View className="flex-1 bg-white px-6 py-10 justify-center">
+        <Text className="text-2xl font-bold mb-4 text-gray-900 mt-4">
           Verify your phone
         </Text>
         <Text className="text-gray-700 mb-6">
-          Enter your phone number and the 6-digit code we sent via SMS.
+          Enter the 6-digit code we sent via SMS to 
+          <Text className="font-semibold text-violet-600"> {phone} </Text>
         </Text>
-
-        {/* Phone input (editable in case user wants to correct it) */}
-        <View className="mb-4">
-          <Text className="text-gray-800 mb-2">Phone number</Text>
-          <TextInput
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="e.g. +9733xxxxxxx"
-            keyboardType="phone-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
-          />
-        </View>
 
         {/* Code input */}
         <View className="mb-6">
@@ -174,6 +163,7 @@ export default function VerifyPhoneScreen() {
           <TextInput
             value={code}
             onChangeText={setCode}
+            placeholderTextColor="grey"
             placeholder="Enter 6-digit code"
             keyboardType="number-pad"
             maxLength={6}
@@ -186,7 +176,7 @@ export default function VerifyPhoneScreen() {
           onPress={handleVerify}
           disabled={loading || !phone || !code}
           className={`rounded-lg py-3 items-center mb-4 ${
-            loading || !phone || !code ? "bg-gray-300" : "bg-blue-600"
+            loading || !phone || !code ? "bg-gray-300" : "bg-black"
           }`}
         >
           {loading ? (
@@ -204,13 +194,13 @@ export default function VerifyPhoneScreen() {
               <Text className="ml-2 text-gray-600">Sending...</Text>
             </View>
           ) : (
-            <Text className="text-blue-600">Resend code</Text>
+            <Text className="text-violet-600 underline">Resend code</Text>
           )}
         </Pressable>
 
         {/* Back link */}
         <Pressable onPress={handleBack} className="items-center mt-4">
-          <Text className="text-gray-600 underline">Back</Text>
+          <Text className="text-violet-600 underline">Back</Text>
         </Pressable>
       </View>
     </TouchableWithoutFeedback>

@@ -650,40 +650,10 @@ export default function EstablishmentActivities() {
     <ScrollView className="flex-1 bg-slate-50">
       <View className="px-4 py-4">
         {/* Header showing which establishment this dashboard is for */}
-        <Text className="text-[22px] font-extrabold text-gray-900">
+        <Text className="text-[28px] font-extrabold text-gray-900">
           Activities & schedules
         </Text>
-        <Text className="mt-1 text-[13px] text-gray-500">
-          Create activities and manage the time slots your customers can book.
-        </Text>
-
-        <View className="mt-4 p-3 rounded-2xl bg-white border border-gray-200 flex-row items-center justify-between">
-          <View className="flex-1 mr-3">
-            <Text
-              className="text-[14px] font-semibold text-gray-900"
-              numberOfLines={1}
-            >
-              {establishment.name}
-            </Text>
-            <Text className="text-[12px] text-gray-500 mt-[2px]">
-              Business account
-            </Text>
-          </View>
-          <View
-            className={`px-3 py-[4px] rounded-full ${
-              establishment.status === "approved"
-                ? "bg-green-500"
-                : establishment.status === "rejected"
-                ? "bg-red-500"
-                : "bg-yellow-500"
-            }`}
-          >
-            <Text className="text-[11px] font-semibold text-white uppercase">
-              {establishment.status}
-            </Text>
-          </View>
-        </View>
-
+        
         {/* Create new activity form */}
         <View className="mt-6 mb-4 p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
           <Text className="font-semibold text-gray-900 mb-1">
@@ -715,6 +685,7 @@ export default function EstablishmentActivities() {
 
           <TextInput
             className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+            placeholderTextColor="grey"
             placeholder="Title *"
             value={addTitle}
             onChangeText={setAddTitle}
@@ -722,6 +693,7 @@ export default function EstablishmentActivities() {
 
           <TextInput
             className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+            placeholderTextColor="grey"
             placeholder="Description"
             value={addDescription}
             onChangeText={setAddDescription}
@@ -730,6 +702,7 @@ export default function EstablishmentActivities() {
 
           <TextInput
             className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+            placeholderTextColor="grey"
             placeholder="Price (optional, BHD)"
             keyboardType="numeric"
             value={addPrice}
@@ -758,6 +731,7 @@ export default function EstablishmentActivities() {
 
             <TextInput
               className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+              placeholderTextColor="grey"
               placeholder="Title *"
               value={editTitle}
               onChangeText={setEditTitle}
@@ -765,6 +739,7 @@ export default function EstablishmentActivities() {
 
             <TextInput
               className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
+              placeholderTextColor="grey"
               placeholder="Description"
               value={editDescription}
               onChangeText={setEditDescription}
@@ -773,7 +748,8 @@ export default function EstablishmentActivities() {
 
             <TextInput
               className="border border-gray-300 rounded-xl px-3 py-2 mb-2 bg-white"
-              placeholder="Price (optional, BHD)"
+              placeholderTextColor="grey"
+              placeholder="Price (BHD)"
               keyboardType="numeric"
               value={editPrice}
               onChangeText={setEditPrice}
@@ -853,6 +829,7 @@ export default function EstablishmentActivities() {
                 </Text>
                 <TextInput
                   className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                  placeholderTextColor="grey"
                   placeholder="HH:MM (24h)"
                   value={scheduleStartTime}
                   onChangeText={setScheduleStartTime}
@@ -865,6 +842,7 @@ export default function EstablishmentActivities() {
                 </Text>
                 <TextInput
                   className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                  placeholderTextColor="grey"
                   placeholder="HH:MM"
                   value={scheduleEndTime}
                   onChangeText={setScheduleEndTime}
@@ -878,6 +856,7 @@ export default function EstablishmentActivities() {
               </Text>
               <TextInput
                 className="border border-gray-300 rounded-xl px-3 py-2 text-[13px] bg-white"
+                placeholderTextColor="grey"
                 placeholder="e.g. 10"
                 keyboardType="numeric"
                 value={scheduleCapacity}
@@ -913,8 +892,8 @@ export default function EstablishmentActivities() {
 
         {/* Activities list */}
         <View className="mt-2">
-          <Text className="text-[14px] font-semibold text-gray-900 mb-2">
-            Existing activities
+          <Text className="text-[16px] font-semibold text-gray-900 mb-2">
+            Current activities
           </Text>
 
           <FlatList

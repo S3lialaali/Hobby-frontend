@@ -21,12 +21,16 @@ export default function RootLayout() {
         <Stack initialRouteName="screens/login">
         <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+        <Stack.Screen name="(establishment)" options={{ headerShown: false }} />
         <Stack.Screen
           name="screens/establishment"
           options={{ headerShown: false, title: "Establishment" }}
         />
-        {/* NEW: make sure these exist */}
+        
         <Stack.Screen name="screens/login"  options={{ headerShown: false, title: "Login" }} />
+        <Stack.Screen name="screens/forgot-password" options={{ headerShown: false, title: "Forgot Password" }} />
+        <Stack.Screen name="screens/verify-email" options={{ headerShown: false, title: "Verify Email" }} />
+        <Stack.Screen name="screens/verify-phone" options={{ headerShown: false, title: "Verify Phone" }} />
         {/* role-based signup screens */}
         <Stack.Screen name="screens/signup/role" options={{ headerShown: false, title: "Choose role"}} />
         <Stack.Screen name="screens/signup/user" options={{ headerShown: false, title: "Sign up (User)"}} />

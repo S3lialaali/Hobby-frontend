@@ -327,13 +327,8 @@ export default function EstablishmentInstructors() {
   // Normal UI
   return (
     <ScrollView className="flex-1 p-4">
-      <Text className="text-xl font-bold mb-2">Instructors</Text>
-      <Text className="text-sm text-gray-500 mb-4">
-        Establishment:{" "}
-        <Text className="font-semibold">{establishment.name}</Text>{" "}
-        ({establishment.status})
-      </Text>
-
+      <Text className="text-[28px] font-extrabold text-gray-900 mb-8">Instructors</Text>
+    
       {/* Create new instructor form */}
       <View className="mb-6 p-3 rounded-2xl border border-gray-200">
         <Text className="font-semibold mb-2">Add new instructor</Text>
@@ -360,6 +355,7 @@ export default function EstablishmentInstructors() {
 
         <TextInput
           className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+          placeholderTextColor="grey"
           placeholder="Name *"
           value={addName}
           onChangeText={setAddName}
@@ -367,6 +363,7 @@ export default function EstablishmentInstructors() {
 
         <TextInput
           className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+          placeholderTextColor="grey"
           placeholder="Bio"
           value={addBio}
           onChangeText={setAddBio}
@@ -375,6 +372,7 @@ export default function EstablishmentInstructors() {
 
         <TextInput
           className="border border-gray-300 rounded-xl px-3 py-2 mb-2"
+          placeholderTextColor="grey"
           placeholder="Phone"
           value={addPhone}
           onChangeText={setAddPhone}
