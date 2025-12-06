@@ -9,7 +9,7 @@ import { useAuth } from '../../sessions/AuthContext';
 
 
 // -------- Categories --------
-const CATEGORIES = [
+export const CATEGORIES = [
   { id: 'c1', name: 'Sports & fitness', img: require('../../assets/images/categories/sports.jpeg') },
   { id: 'c2', name: 'Water activities', img: require('../../assets/images/categories/swimming.jpeg') },
   { id: 'c3', name: 'Arts & crafts', img: require('../../assets/images/categories/arts.jpeg') },

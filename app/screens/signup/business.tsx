@@ -17,6 +17,7 @@ import { getApiError } from "@/api/client";
 import { useAuth } from "@/sessions/AuthContext";
 import * as ImagePicker from "expo-image-picker";   
 import { uploadEstablishmentImage } from "@/api/uploads";
+import { CATEGORIES } from "@/app/(tabs)/index";
 
 function withBahrainCode(raw: string) {
   const digits = raw.replace(/\D/g, ""); // keep only numbers
@@ -77,6 +78,8 @@ export default function SignupBusiness() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryOptions = useMemo(() => CATEGORIES.map((c) => c.name), []);
 
   // address parts
   const [country, setCountry] = useState("Bahrain");
@@ -284,13 +287,35 @@ export default function SignupBusiness() {
           onChangeText={setDescription}
           className="border rounded-xl px-4 py-3 mb-3"
         />
-        <TextInput
-          placeholder="Category (e.g., Water activities, Football)"
-          placeholderTextColor="rgba(60,60,67,0.6)"
-          value={category}
-          onChangeText={setCategory}
-          className="border rounded-xl px-4 py-3 mb-3"
-        />
+        <View className="mb-3">
+          <Text className="font-medium mb-1">Category</Text>
+          <Pressable
+            onPress={() => setIsCategoryOpen((v) => !v)}
+            className="border rounded-xl px-4 py-3 bg-white"
+          >
+            <Text className="text-gray-900">
+              {category || "Select a category"}
+            </Text>
+          </Pressable>
+          {isCategoryOpen ? (
+            <View className="border rounded-xl mt-2 max-h-56 bg-white">
+              <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {categoryOptions.map((opt) => (
+                  <Pressable
+                    key={opt}
+                    onPress={() => {
+                      setCategory(opt);
+                      setIsCategoryOpen(false);
+                    }}
+                    className="px-4 py-3 border-b last:border-b-0 border-gray-100"
+                  >
+                    <Text className="text-gray-900">{opt}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
         {/* Establishment image (required) */}
         <Text className="font-semibold mt-1 mb-2">Establishment image *</Text>
         <View className="flex-row items-center mb-4">
