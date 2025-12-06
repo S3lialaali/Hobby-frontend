@@ -13,9 +13,11 @@ const LOG = {
 
 export function resolveImageUrl(u) {
   if (!u) return null;
-  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  // Some API rows return malformed http:/... or https:/... (missing double slash); normalize them.
+  const normalized = u.replace(/^(https?:)\/(?!\/)/, "$1//");
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) return normalized;
   if (u.startsWith("/")) return `${API_BASE_URL}${u}`;
-  return `${API_BASE_URL}/${u}`;
+  return `${API_BASE_URL}/${normalized}`;
 }
 
 //in memory access token
